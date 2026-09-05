@@ -307,6 +307,62 @@ When working with Express v5 (`^5.x`), avoid legacy Express v4 route pattern con
 ### Lesson
 Major framework version upgrades (Express 4 -> 5) often introduce subtle breaking changes in routing syntax that require careful review of underlying library upgrades (like `path-to-regexp`).
 
+---
+
+## ERR-007 — Missing State Declaration Causing Blank White Screen on Student Dashboard
+
+### Date
+2026-09-05
+
+### Context
+Navigating to `/student-dashboard` in the React frontend.
+
+### Error
+```text
+Uncaught ReferenceError: setApiError is not defined
+    at loadClasses (StudentDashboard.jsx:82:9)
+    at StudentDashboard.jsx:96:5
+    at commitHookEffectListMount (react-dom.development.js:23150:26)
+    at commitPassiveMountEffects (react-dom.development.js:23207:11)
+```
+
+### Symptoms
+Navigating to `http://localhost:5173/student-dashboard` yielded a completely blank white screen. No components, header, or error messages were rendered.
+
+### Root Cause
+During the migration from hardcoded arrays to dynamic API calls, state setters and renders for `apiError` (`setApiError(null)` at lines 82, 91, 105, 132, 158, 210 and `{apiError && ...}` at line 768) were introduced, but the state declaration `const [apiError, setApiError] = useState(null);` was inadvertently omitted.
+Because Vite/Rollup does not enforce strict TypeScript variable scoping on `.jsx` files at compile time (treating unbound variables as potential runtime globals), `npm run build` succeeded. However, when React mounted the component in the browser, `loadClasses()` immediately executed `setApiError(null)` on line 82, triggering an uncaught `ReferenceError: setApiError is not defined`.
+In React 18, an uncaught exception during component rendering or passive mount effects unmounts the entire component tree, leaving the DOM completely empty (a blank white screen).
+
+### Investigation
+1. Inspected browser screenshot showing blank screen at `/student-dashboard`.
+2. Parsed `StudentDashboard.jsx` AST using `@babel/parser` and `@babel/traverse` with scope binding inspection.
+3. Detected that `setApiError` and `apiError` were the exact and only unbound identifiers in the entire component.
+
+### Fix
+1. Added the missing state declaration `const [apiError, setApiError] = useState(null);` in `code/quiz-frontend/src/pages/StudentDashboard.jsx`.
+2. Added a top-level React `ErrorBoundary` component in `code/quiz-frontend/src/App.jsx` to catch any future render errors and display a helpful error card with "Reload Page" and "Go to Login" actions rather than collapsing into a blank screen.
+3. Added alias routes `<Route path="/student" element={<Navigate to="/student-dashboard" replace />} />` and `/teacher` in `App.jsx`.
+
+### Why This Fix Works
+Declaring `const [apiError, setApiError] = useState(null)` binds the identifier to the component scope, allowing `loadClasses` and subsequent query handlers to execute safely without throwing `ReferenceError`. The `ErrorBoundary` ensures that if an unforeseen exception occurs elsewhere, users receive a descriptive fallback UI instead of an unresponsive blank canvas.
+
+### Alternative Solutions Considered
+- Remove `apiError` entirely: Rejected because displaying backend connectivity errors and retry options to students is vital for usability in school network environments.
+
+### Verification
+1. Ran AST analysis script: reported `Undeclared references count: 0`.
+2. Ran `npm run build`: built production bundle cleanly in 1.17s.
+3. Verified `GET /student-dashboard` on port 5173 returns HTTP 200.
+
+### Prevention
+1. Use AST or ESLint checking for unbound references in `.jsx` files before committing.
+2. Always maintain a root `ErrorBoundary` in React single-page applications.
+
+### Lesson
+In JavaScript JSX projects without strict TypeScript enforcement, bundlers will not catch missing local state variable declarations at build time. Automated static AST validation and React Error Boundaries are essential to catch and isolate these runtime errors.
+
+
 
 
 

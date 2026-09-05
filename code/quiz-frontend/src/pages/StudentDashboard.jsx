@@ -56,6 +56,7 @@ export default function StudentDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [historyRecords, setHistoryRecords] = useState([]);
+  const [apiError, setApiError] = useState(null);
 
   // Fetch Student Quiz History from Database
   const loadAttemptsHistory = async () => {
