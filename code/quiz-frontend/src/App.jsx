@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import LoginPage from './pages/LoginPage.jsx';
 import StudentDashboard from './pages/StudentDashboard.jsx';
+import TeacherDashboard from './pages/TeacherDashboard.jsx';
 
 export default function App() {
   return (
@@ -14,6 +15,3 @@ export default function App() {
     </Router>
   );
 }
-import TeacherDashboard from './pages/TeacherDashboard';
-
-// Inside your Router/Routes list:

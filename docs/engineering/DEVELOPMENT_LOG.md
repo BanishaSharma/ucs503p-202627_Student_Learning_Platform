@@ -270,4 +270,92 @@ Provide the user with an immediate, visual, fully functional student quiz experi
 ### Result
 Full stack is operational locally. The student portal is live and accessible at `http://localhost:5000/`. No code was pushed to remote GitHub.
 
+---
+
+## 2026-09-05 — Session 4: Remote Frontend Merge, Seed Expansion, Dynamic Dashboard Migration & Quiz History API
+
+### Date
+2026-09-05
+
+### Task
+1. Pull the remote `master` branch from GitHub containing the teammate's updated React/Tailwind frontend into the local working branch `feature/quiz-database-integration`.
+2. Ensure quiz data, questions, curriculum hierarchy, and student progress are **100% dynamic** from PostgreSQL and not hardcoded.
+3. Integrate the updated frontend with the Express + PostgreSQL backend.
+4. Run the entire full stack locally and provide comprehensive engineering documentation.
+5. Strictly do not push changes to GitHub.
+
+### Objective
+Eliminate all mock / hardcoded arrays from the frontend codebase, connect the frontend seamlessly to the backend REST API via a development reverse proxy, expand curriculum seed data across Class 8–10, and implement attempt history tracking in the backend.
+
+### Changes Made
+- **Git Synchronization & Merge:**
+  - Fetched `origin/master` (commit `0278d4f` / PR #3).
+  - Merged `origin/master` into `feature/quiz-database-integration` (merge commit `006618c`).
+  - Resolved merge conflicts on `code/quiz-frontend/package.json` and `code/quiz-frontend/index.html` in favor of the React/Vite application.
+- **Frontend Build & Dependency Setup:**
+  - Added missing dependencies to `code/quiz-frontend/package.json`: `react` (`^18.3.1`), `react-dom` (`^18.3.1`), `react-router-dom` (`^7.1.3`), `vite` (`^6.1.1`), `@tailwindcss/vite`, and `@vitejs/plugin-react`.
+  - Configured scripts: `"dev": "vite"`, `"build": "vite build"`, `"preview": "vite preview"`.
+  - Executed `npm install` (installed 83 packages, 0 vulnerabilities).
+  - Fixed syntax bug in `code/quiz-frontend/src/App.jsx` where `import TeacherDashboard` was placed after the default export.
+  - Configured Vite development proxy in `code/quiz-frontend/vite.config.js`: forwards `/api` requests to `http://localhost:5000`.
+- **Database & Curriculum Seed Expansion:**
+  - Expanded `code/quiz-database/seeds/001_seed_quiz_data.sql` to include full curriculum across Class 8, Class 9, and Class 10 (Mathematics, Science, English, Social Science).
+  - Seeded 11 quizzes and 32 multiple-choice questions with answer keys across 10 chapters.
+  - Re-seeded database `shikshasetu_quiz` (`npm run db:seed`).
+- **Backend Expansion — Attempts History Endpoint:**
+  - Created `GET /api/attempts` with optional `?studentId=` query parameter.
+  - Updated `code/quiz-backend/src/types/quiz.types.ts`: added `StudentAttemptHistoryItem` and updated `QuizAttemptResult` to return evaluated answer review items.
+  - Updated `code/quiz-backend/src/db/queries.ts`: implemented `findStudentAttempts()` joining `quiz_attempts` with `quizzes`, `chapters`, `subjects`, and `classes`.
+  - Updated `code/quiz-backend/src/services/quiz.service.ts`: added `getStudentAttempts()` domain method and included `correctAnswer` in evaluated answers returned on quiz submission.
+  - Updated `code/quiz-backend/src/controllers/quiz.controller.ts` and `src/routes/quiz.routes.ts`: registered `getStudentAttemptsHandler`.
+- **Dynamic Frontend Migration (`StudentDashboard.jsx`):**
+  - Removed all hardcoded mock arrays: `quizQuestions`, `chaptersData`, `quizzesData`, and static history objects.
+  - Introduced dynamic state with React `useEffect` hooks:
+    - Classes: `GET /api/classes`
+    - Subjects: `GET /api/classes/:classId/subjects`
+    - Chapters: `GET /api/subjects/:subjectId/chapters`
+    - Quizzes: `GET /api/chapters/:chapterId/quizzes`
+    - Questions: `GET /api/quizzes/:quizId/questions`
+    - Submit Attempt: `POST /api/quizzes/:quizId/attempts`
+    - Attempts History: `GET /api/attempts`
+  - Replaced hardcoded progress metrics with dynamic calculations derived from real attempt history records (completed quizzes count, average score percentage, subject-wise mastery).
+  - Replaced static history table with live database rows.
+  - Added review section displaying correct answers for each question upon quiz submission.
+
+### Files Modified
+- `code/quiz-backend/src/types/quiz.types.ts`
+- `code/quiz-backend/src/db/queries.ts`
+- `code/quiz-backend/src/services/quiz.service.ts`
+- `code/quiz-backend/src/controllers/quiz.controller.ts`
+- `code/quiz-backend/src/routes/quiz.routes.ts`
+- `code/quiz-database/seeds/001_seed_quiz_data.sql`
+- `code/quiz-frontend/package.json`
+- `code/quiz-frontend/package-lock.json`
+- `code/quiz-frontend/src/App.jsx`
+- `code/quiz-frontend/src/pages/StudentDashboard.jsx`
+- `code/quiz-frontend/vite.config.js`
+
+### Commands Run
+- `git fetch origin master`
+- `git merge origin/master`
+- `npm install` (in `code/quiz-frontend/`)
+- `npm run db:seed` (in `code/quiz-backend/`)
+- `npm run build` (in `code/quiz-backend/`)
+- `npm run build` (in `code/quiz-frontend/`)
+- `node dist/server.js` (background process on port 5000)
+- `npx vite --port 5173` (background process on port 5173)
+- API verification tests via `curl.exe`.
+
+### Tests Performed
+- Verified `npm run build` passes with zero errors for both backend (`tsc`) and frontend (`vite build`).
+- Verified `GET /api/health` returns HTTP 200 OK.
+- Verified `GET /api/attempts` returns history records joined with curriculum metadata.
+- Verified `GET /api/quizzes/:quizId/questions` returns questions without `correct_answer` field.
+- Verified `POST /api/quizzes/:quizId/attempts` grades submissions server-side in PostgreSQL transaction and returns score + solution review.
+- Verified frontend dev server serves dynamic dashboard at `http://localhost:5173/`.
+
+### Result
+The full stack is verified and running locally. The frontend is fully dynamic, connected directly to the Express backend and PostgreSQL database, with zero hardcoded quiz content. All work remains strictly local.
+
+
 

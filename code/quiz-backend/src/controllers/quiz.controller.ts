@@ -56,3 +56,13 @@ export async function submitQuizAttemptHandler(req: Request, res: Response): Pro
   const result = await quizService.submitQuizAttempt(quizId, payload.answers, payload.studentId);
   sendSuccess(res, result, 201);
 }
+
+/**
+ * GET /api/attempts
+ */
+export async function getStudentAttemptsHandler(req: Request, res: Response): Promise<void> {
+  const studentIdParam = req.query["studentId"] ? Number(req.query["studentId"]) : undefined;
+  const attempts = await quizService.getStudentAttempts(studentIdParam);
+  sendSuccess(res, attempts);
+}
+

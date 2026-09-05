@@ -70,20 +70,33 @@ If services access Express `req` and `res`:
 
 ---
 
-## 4. Current State vs. Target State
+## 4. Full-Stack Operational Architecture
 
-### Current Repository State (Baseline)
-- `src/server.ts`: Starts server on port 5000.
-- `src/app.ts`: Express application with `GET /api/health`.
-- Status: **HEALTH CHECK OPERATIONAL — QUIZ MODULE SCAFFOLDING PENDING.**
+### Implemented State (Current Architecture)
+- **Database Layer (PostgreSQL 18.6):**
+  - Normalized relational schema in `code/quiz-database/migrations/001_initial_schema.sql`.
+  - Comprehensive NCERT-aligned seed in `code/quiz-database/seeds/001_seed_quiz_data.sql` (3 classes, 7 subjects, 10 chapters, 11 quizzes, 32 questions).
+  - Atomic transactions for quiz evaluation and answer recording.
+- **Backend API Layer (Node.js / Express 5 / TypeScript):**
+  - Connection pooling via `pg.Pool`.
+  - Hierarchical browsing endpoints:
+    - `GET /api/classes`
+    - `GET /api/classes/:classId/subjects`
+    - `GET /api/subjects/:subjectId/chapters`
+    - `GET /api/chapters/:chapterId/quizzes`
+    - `GET /api/quizzes/:quizId/questions` (correct answers hidden from students)
+  - Evaluation and history endpoints:
+    - `POST /api/quizzes/:quizId/attempts` (server-side scoring in atomic transaction + solution review)
+    - `GET /api/attempts` (student attempt history with joined curriculum names)
+  - CORS middleware enabled for multi-port local development.
+- **Frontend Layer (React 18 / Vite 6 / Tailwind CSS):**
+  - Single-page application (`code/quiz-frontend/`) with React Router.
+  - Zero hardcoded mock data: dynamically queries backend REST endpoints.
+  - Vite dev server running on `http://localhost:5173/` with reverse proxy forwarding `/api` to `http://localhost:5000`.
+  - Student Dashboard featuring:
+    - Dynamic class, subject, chapter, and quiz selectors.
+    - Interactive quiz taking and submission.
+    - Server-side score display and correct answer explanations.
+    - Live "Quiz History" table loaded directly from PostgreSQL.
+    - Real-time "My Progress" metrics calculated from verified student attempts.
 
-### Target State (This Milestone)
-- Full hierarchical quiz browsing API:
-  - `GET /api/classes`
-  - `GET /api/classes/:classId/subjects`
-  - `GET /api/subjects/:subjectId/chapters`
-  - `GET /api/chapters/:chapterId/quizzes`
-  - `GET /api/quizzes/:quizId/questions` (correct answers stripped)
-- Quiz submission and server-side evaluation:
-  - `POST /api/quizzes/:quizId/attempts`
-- PostgreSQL integration with connection pool, migrations, and seed scripts.

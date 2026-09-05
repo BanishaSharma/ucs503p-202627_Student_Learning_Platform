@@ -197,18 +197,19 @@ We adopt plain, numbered SQL migration files stored in `code/quiz-database/migra
 
 ---
 
-## 6. Verified Database State & Row Counts (as of 2026-09-05)
+## 6. Verified Database State & Row Counts (as of 2026-09-05 Session 4)
 
-The database `shikshasetu_quiz` has been successfully initialized, migrated, and seeded:
+The database `shikshasetu_quiz` has been successfully migrated and seeded with full curriculum data across Classes 8–10:
 
 | Table | Migration File | Seed File | Verified Row Count | Status |
 |---|---|---|---|---|
-| `classes` | `001_initial_schema.sql` | `001_seed_quiz_data.sql` | 3 rows | **VERIFIED** |
-| `subjects` | `001_initial_schema.sql` | `001_seed_quiz_data.sql` | 6 rows | **VERIFIED** |
-| `chapters` | `001_initial_schema.sql` | `001_seed_quiz_data.sql` | 7 rows | **VERIFIED** |
-| `quizzes` | `001_initial_schema.sql` | `001_seed_quiz_data.sql` | 4 rows | **VERIFIED** |
-| `questions` | `001_initial_schema.sql` | `001_seed_quiz_data.sql` | 9 rows | **VERIFIED** |
-| `quiz_attempts` | `001_initial_schema.sql` | Dynamic via API | 1 row | **VERIFIED** |
-| `answers` | `001_initial_schema.sql` | Dynamic via API | 3 rows | **VERIFIED** |
+| `classes` | `001_initial_schema.sql` | `001_seed_quiz_data.sql` | 3 rows (Classes 8, 9, 10) | **VERIFIED** |
+| `subjects` | `001_initial_schema.sql` | `001_seed_quiz_data.sql` | 7 rows (Math, Sci, Eng, SST) | **VERIFIED** |
+| `chapters` | `001_initial_schema.sql` | `001_seed_quiz_data.sql` | 10 rows across subjects | **VERIFIED** |
+| `quizzes` | `001_initial_schema.sql` | `001_seed_quiz_data.sql` | 11 quizzes | **VERIFIED** |
+| `questions` | `001_initial_schema.sql` | `001_seed_quiz_data.sql` | 32 MCQ questions with answer keys | **VERIFIED** |
+| `quiz_attempts` | `001_initial_schema.sql` | Dynamic via API | 4 rows | **VERIFIED** |
+| `answers` | `001_initial_schema.sql` | Dynamic via API | 12 rows | **VERIFIED** |
 | `users` | `001_initial_schema.sql` | `001_seed_quiz_data.sql` | 3 rows | **VERIFIED** |
+
 

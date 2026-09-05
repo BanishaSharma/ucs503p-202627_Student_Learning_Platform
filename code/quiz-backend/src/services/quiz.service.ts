@@ -10,7 +10,8 @@ import {
   findQuestionsByQuizId,
   findQuestionsForScoring,
   insertQuizAttempt,
-  insertAttemptAnswer
+  insertAttemptAnswer,
+  findStudentAttempts
 } from "../db/queries.js";
 import { getClient } from "../db/index.js";
 import { AppError } from "../middleware/errorHandler.js";
@@ -21,7 +22,9 @@ import type {
   QuizItem,
   StudentQuestionItem,
   SubmittedAnswer,
-  QuizAttemptResult
+  QuizAttemptResult,
+  EvaluatedAnswerResult,
+  StudentAttemptHistoryItem
 } from "../types/quiz.types.js";
 
 /**
@@ -122,14 +125,10 @@ export async function submitQuizAttempt(
 
   // Server-side scoring calculation
   let score = 0;
-  const evaluatedAnswers: Array<{
-    questionId: number;
-    selectedAnswer: "A" | "B" | "C" | "D";
-    isCorrect: boolean;
-  }> = [];
+  const evaluatedAnswers: EvaluatedAnswerResult[] = [];
 
   for (const ans of answers) {
-    const trueAnswer = correctMap.get(ans.questionId);
+    const trueAnswer = correctMap.get(ans.questionId)!;
     const isCorrect = ans.selectedAnswer === trueAnswer;
     if (isCorrect) {
       score += 1;
@@ -137,6 +136,7 @@ export async function submitQuizAttempt(
     evaluatedAnswers.push({
       questionId: ans.questionId,
       selectedAnswer: ans.selectedAnswer,
+      correctAnswer: trueAnswer,
       isCorrect
     });
   }
@@ -173,7 +173,8 @@ export async function submitQuizAttempt(
       quizId,
       score,
       totalQuestions,
-      percentage: totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0
+      percentage: totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0,
+      answers: evaluatedAnswers
     };
   } catch (err) {
     await client.query("ROLLBACK");
@@ -181,4 +182,11 @@ export async function submitQuizAttempt(
   } finally {
     client.release();
   }
+}
+
+/**
+ * Retrieve student quiz attempts history with curriculum metadata.
+ */
+export async function getStudentAttempts(studentId?: number): Promise<StudentAttemptHistoryItem[]> {
+  return await findStudentAttempts(studentId);
 }

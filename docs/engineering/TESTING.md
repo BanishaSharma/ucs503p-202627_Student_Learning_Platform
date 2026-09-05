@@ -55,11 +55,16 @@ All tests below were executed against the running Express application connected 
 | **TST-010** | POST | `/api/quizzes/1/attempts` | `selectedAnswer: "X"` | 400 Bad Request | 400 Bad Request | `{"success":false,"error":"Validation error: answers.0.selectedAnswer: Invalid option: expected one of \"A\"|\"B\"|\"C\"|\"D\""}` | **PASSED** |
 | **TST-011** | POST | `/api/quizzes/1/attempts` | Question ID 8 (belongs to Quiz 4, not Quiz 1) | 400 Bad Request | 400 Bad Request | `{"success":false,"error":"Question ID 8 does not belong to quiz ID 1"}` | **PASSED** |
 | **TST-012** | GET | `/api/quizzes/9999/questions` | Non-existent quiz ID | 404 Not Found | 404 Not Found | `{"success":false,"error":"Quiz with ID 9999 not found"}` | **PASSED** |
+| **TST-013** | GET | `/api/attempts` | None | 200 OK | 200 OK | Returned array of attempt history records joined with `quizTitle`, `chapterName`, `subjectName`, `className` | **PASSED** |
+| **TST-014** | GET | `/api/attempts?studentId=1` | `studentId = 1` | 200 OK | 200 OK | Filtered attempts specifically for student 1 | **PASSED** |
+| **TST-015** | GET | `http://localhost:5173/` | None (Vite dev server) | 200 OK | 200 OK | Serves React/Tailwind frontend HTML and scripts | **PASSED** |
+| **TST-016** | CLI | `npm run build` (quiz-frontend) | Vite build command | Exit 0 | Exit 0 | Clean build (41 modules transformed, 0 syntax/lint errors, bundle generated in `dist/`) | **PASSED** |
+| **TST-017** | CLI | `npm run build` (quiz-backend) | TypeScript `tsc` command | Exit 0 | Exit 0 | Clean TypeScript compilation; output generated in `dist/` | **PASSED** |
+| **TST-018** | End-to-End | Complete Student Quiz Journey | Student loads dashboard -> selects Class 8 -> Math -> Rational Numbers -> takes quiz -> submits | Score computed & stored | Score computed & stored | Computed score (2/3, 67%), displayed solution review with correct answers, auto-refreshed attempt history | **PASSED** |
 
 ### Database State Verification Post-Testing
-- `quiz_attempts` row verified: `id: 1, student_id: 2, quiz_id: 1, score: 2, total_questions: 3`.
-- `answers` rows verified:
-  - Q1: `selected_answer: 'B', is_correct: true`
-  - Q2: `selected_answer: 'C', is_correct: true`
-  - Q3: `selected_answer: 'D', is_correct: false`
+- `quiz_attempts` rows verified: 4 completed attempts recorded with accurate scores and timestamps.
+- `answers` rows verified: 12 detailed answer records mapping student selections against questions and recording `is_correct` flags.
+- Real-time reactivity verified: Submitting a quiz from the dashboard immediately creates database records and reflects in the student's "Quiz History" and "My Progress" completion calculations.
+
 

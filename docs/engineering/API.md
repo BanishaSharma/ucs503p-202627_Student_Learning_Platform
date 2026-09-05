@@ -375,8 +375,28 @@ Student
     "attemptId": 1,
     "quizId": 1,
     "score": 2,
-    "totalQuestions": 2,
-    "percentage": 100
+    "totalQuestions": 3,
+    "percentage": 67,
+    "answers": [
+      {
+        "questionId": 1,
+        "selectedAnswer": "B",
+        "correctAnswer": "B",
+        "isCorrect": true
+      },
+      {
+        "questionId": 2,
+        "selectedAnswer": "C",
+        "correctAnswer": "C",
+        "isCorrect": true
+      },
+      {
+        "questionId": 3,
+        "selectedAnswer": "A",
+        "correctAnswer": "D",
+        "isCorrect": false
+      }
+    ]
   }
 }
 ```
@@ -385,3 +405,59 @@ Student
 - **HTTP Status:** `400 Bad Request` (Validation error or questions do not match quiz)
 - **HTTP Status:** `404 Not Found` (Quiz not found)
 - **HTTP Status:** `500 Internal Server Error`
+
+---
+
+## 8. Get Student Quiz Attempt History
+
+### Method
+`GET`
+
+### URL
+`/api/attempts`
+
+### Status
+**STATUS: IMPLEMENTED**
+
+### Purpose
+Retrieve quiz attempt history records for a student, joined with quiz title, chapter name, subject name, and class name to support student progress tracking and performance dashboards.
+
+### Authentication Required
+Optional/Deferred for this phase (supports optional `?studentId=` query parameter).
+
+### Required Role
+None
+
+### Request Parameters
+- `studentId` (Query parameter, integer, optional): Filter attempt history by a specific student ID. If omitted, returns all recorded attempts.
+
+### Validation Rules
+- When provided, `studentId` must be a positive integer string.
+
+### Success Response
+- **HTTP Status:** `200 OK`
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 4,
+      "quizId": 1,
+      "studentId": 1,
+      "score": 2,
+      "totalQuestions": 3,
+      "percentage": 67,
+      "attemptedAt": "2026-09-05T10:05:02.775Z",
+      "quizTitle": "Rational Numbers - Fundamentals",
+      "chapterName": "Rational Numbers",
+      "subjectName": "Mathematics",
+      "className": "Class 8"
+    }
+  ]
+}
+```
+
+### Error Responses
+- **HTTP Status:** `400 Bad Request` (Invalid `studentId` format)
+- **HTTP Status:** `500 Internal Server Error`
+

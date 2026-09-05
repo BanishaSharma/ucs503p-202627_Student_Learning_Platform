@@ -60,13 +60,37 @@ export interface SubmitQuizAttemptPayload {
   answers: SubmittedAnswer[];
 }
 
-// Computed score response returned to student
+// Computed score
+export interface EvaluatedAnswerResult {
+  questionId: number;
+  selectedAnswer: "A" | "B" | "C" | "D";
+  correctAnswer: "A" | "B" | "C" | "D";
+  isCorrect: boolean;
+}
+
+// Result returned upon scoring an attempt
 export interface QuizAttemptResult {
   attemptId: number;
   quizId: number;
   score: number;
   totalQuestions: number;
   percentage: number;
+  answers?: EvaluatedAnswerResult[];
+}
+
+// Student quiz attempt history item for dashboards
+export interface StudentAttemptHistoryItem {
+  id: number;
+  quizId: number;
+  studentId: number | null;
+  score: number;
+  totalQuestions: number;
+  percentage: number;
+  attemptedAt: string;
+  quizTitle: string;
+  chapterName: string;
+  subjectName: string;
+  className: string;
 }
 
 // Standard API response envelope

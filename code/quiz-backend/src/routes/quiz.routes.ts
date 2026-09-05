@@ -6,7 +6,8 @@ import {
   getChaptersBySubjectHandler,
   getQuizzesByChapterHandler,
   getQuestionsForQuizHandler,
-  submitQuizAttemptHandler
+  submitQuizAttemptHandler,
+  getStudentAttemptsHandler
 } from "../controllers/quiz.controller.js";
 
 const router = Router();
@@ -20,5 +21,8 @@ router.get("/quizzes/:quizId/questions", asyncHandler(getQuestionsForQuizHandler
 
 // Quiz Submission & Evaluation Endpoint
 router.post("/quizzes/:quizId/attempts", asyncHandler(submitQuizAttemptHandler));
+
+// Student Attempt History Endpoint
+router.get("/attempts", asyncHandler(getStudentAttemptsHandler));
 
 export default router;

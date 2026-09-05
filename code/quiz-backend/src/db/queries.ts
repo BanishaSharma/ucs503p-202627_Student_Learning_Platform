@@ -6,7 +6,8 @@ import type {
   ChapterItem,
   QuizItem,
   StudentQuestionItem,
-  InternalScoringQuestion
+  InternalScoringQuestion,
+  StudentAttemptHistoryItem
 } from "../types/quiz.types.js";
 
 /**
@@ -200,4 +201,37 @@ export async function insertAttemptAnswer(
     VALUES ($1, $2, $3, $4);
   `;
   await client.query(sql, [attemptId, questionId, selectedAnswer, isCorrect]);
+}
+
+/**
+ * Retrieve attempt history for students with full curriculum metadata.
+ */
+export async function findStudentAttempts(studentId?: number): Promise<StudentAttemptHistoryItem[]> {
+  let sql = `
+    SELECT 
+      qa.id,
+      qa.quiz_id AS "quizId",
+      qa.student_id AS "studentId",
+      qa.score,
+      qa.total_questions AS "totalQuestions",
+      ROUND((qa.score::numeric / qa.total_questions::numeric) * 100)::integer AS percentage,
+      qa.attempted_at AS "attemptedAt",
+      q.title AS "quizTitle",
+      ch.name AS "chapterName",
+      s.name AS "subjectName",
+      c.name AS "className"
+    FROM quiz_attempts qa
+    JOIN quizzes q ON qa.quiz_id = q.id
+    JOIN chapters ch ON q.chapter_id = ch.id
+    JOIN subjects s ON ch.subject_id = s.id
+    JOIN classes c ON s.class_id = c.id
+  `;
+  const params: unknown[] = [];
+  if (studentId !== undefined) {
+    sql += ` WHERE qa.student_id = $1`;
+    params.push(studentId);
+  }
+  sql += ` ORDER BY qa.attempted_at DESC;`;
+  const result = await query<StudentAttemptHistoryItem>(sql, params);
+  return result.rows;
 }

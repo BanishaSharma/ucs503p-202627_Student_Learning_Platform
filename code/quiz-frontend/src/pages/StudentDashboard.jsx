@@ -26,132 +26,150 @@ export default function StudentDashboard() {
 
   // Navigation & Page Tab States
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'progress', 'history'
-  const [selectedClass, setSelectedClass] = useState('10th');
+  
+  // Database Hierarchy States
+  const [classesList, setClassesList] = useState([]);
+  const [selectedClassId, setSelectedClassId] = useState(null);
+  const [subjectsList, setSubjectsList] = useState([]);
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState('All');
   
   // Drilldown View States
   const [activeSubject, setActiveSubject] = useState(null);
+  const [chaptersList, setChaptersList] = useState([]);
   const [activeChapter, setActiveChapter] = useState(null);
+  const [quizzesList, setQuizzesList] = useState([]);
   const [activeQuiz, setActiveQuiz] = useState(null);
   
   // Quiz Engine Active States
+  const [quizQuestions, setQuizQuestions] = useState([]);
   const [isQuizRunning, setIsQuizRunning] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [userAnswers, setUserAnswers] = useState({}); // { 0: optionIdx }
+  const [userAnswers, setUserAnswers] = useState({}); // { 0: 'A' | 'B' | 'C' | 'D' }
   const [markedForReview, setMarkedForReview] = useState({}); // { 0: true }
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes (600s)
   
-  // Quiz Flow Views
+  // Quiz Flow Views & Feedback
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
-  const [quizResult, setQuizResult] = useState(null); // Stores submitted evaluation payload
+  const [quizResult, setQuizResult] = useState(null);
   const [isReviewingMode, setIsReviewingMode] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [historyRecords, setHistoryRecords] = useState([]);
 
-  // Mock Question Database
-  const quizQuestions = [
-    {
-      id: 1,
-      question: "Which of the following expressions is a polynomial?",
-      options: ["1/x + 2", "x² + 3x + 2", "√x + 1", "x⁻¹ + 4"],
-      correct: 1,
-      explanation: "A polynomial cannot contain variables under a square root, in denominators, or with negative exponents."
-    },
-    {
-      id: 2,
-      question: "What is the degree of a non-zero constant polynomial?",
-      options: ["0", "1", "2", "Not Defined"],
-      correct: 0,
-      explanation: "A constant polynomial like f(x) = 5 can be written as 5x⁰, meaning its degree is 0."
-    },
-    {
-      id: 3,
-      question: "If α and β are the zeroes of x² - 5x + 6, then the value of (α + β) is:",
-      options: ["5", "-5", "6", "-6"],
-      correct: 0,
-      explanation: "By Vieta's formula, sum of zeroes (α + β) = -b/a = -(-5)/1 = 5."
-    },
-    {
-      id: 4,
-      question: "The maximum number of zeroes a cubic polynomial can have is:",
-      options: ["1", "2", "3", "4"],
-      correct: 2,
-      explanation: "A polynomial of degree n has at most n real zeroes. A cubic polynomial has degree 3."
-    },
-    {
-      id: 5,
-      question: "The geometrical representation of a quadratic polynomial is a:",
-      options: ["Straight Line", "Parabola", "Circle", "Hyperbola"],
-      correct: 1,
-      explanation: "The equation y = ax² + bx + c always plots as a U-shaped or inverted U-shaped parabola."
+  // Fetch Student Quiz History from Database
+  const loadAttemptsHistory = async () => {
+    try {
+      const res = await fetch('/api/attempts');
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setHistoryRecords(json.data);
+      }
+    } catch (err) {
+      console.error('Failed to load attempt history from database:', err);
     }
-  ];
-
-  // Mock Dashboard & History Data
-  // Mock Data: Chapters
-  const chaptersData = {
-    Mathematics: [
-      { id: 101, chapterNum: 1, title: 'Real Numbers', status: 'Completed' },
-      { id: 102, chapterNum: 2, title: 'Polynomials', status: 'In Progress' },
-    ],
-    Science: [
-      { id: 201, chapterNum: 1, title: 'Chemical Reactions', status: 'In Progress' },
-      { id: 202, chapterNum: 2, title: 'Light Reflection & Refraction', status: 'Not Started' },
-    ],
-    English: [
-      { id: 301, chapterNum: 1, title: 'A Letter to God', status: 'In Progress' },
-      { id: 302, chapterNum: 2, title: 'Nelson Mandela: Long Walk to Freedom', status: 'Not Started' },
-    ],
-    'Social Science': [
-      { id: 401, chapterNum: 1, title: 'The Rise of Nationalism in Europe', status: 'Not Started' },
-    ]
   };
 
-  // Mock Data: Quizzes
-  const quizzesData = {
-    // Mathematics
-    'Real Numbers': [
-      { id: 1, title: 'Basic Concepts Quiz', badge: '🟢 Basic', questions: 5, difficulty: 'Easy', time: '10 mins', attempts: 'Unlimited', bestScore: '100%' },
-      { id: 2, title: 'Euclid Division Lemma', badge: '🟡 Intermediate', questions: 5, difficulty: 'Medium', time: '10 mins', attempts: '2 / 3', bestScore: '80%' },
-      { id: 3, title: 'Irrationality Proofs', badge: '🔴 Challenge', questions: 5, difficulty: 'Hard', time: '15 mins', attempts: '0 / 2', bestScore: 'N/A' },
-    ],
-    'Polynomials': [
-      { id: 1, title: 'Basic Practice Quiz', badge: '🟢 Basic', questions: 5, difficulty: 'Easy', time: '10 mins', attempts: 'Unlimited', bestScore: '90%' },
-      { id: 2, title: 'Intermediate Quiz', badge: '🟡 Intermediate', questions: 5, difficulty: 'Medium', time: '10 mins', attempts: '2 / 3', bestScore: '60%' },
-      { id: 3, title: 'Challenge Quiz', badge: '🔴 Challenge', questions: 5, difficulty: 'Hard', time: '15 mins', attempts: '0 / 2', bestScore: 'N/A' },
-    ],
+  useEffect(() => {
+    loadAttemptsHistory();
+  }, []);
 
-    // Science
-    'Chemical Reactions': [
-      { id: 1, title: 'Types of Reactions', badge: '🟢 Basic', questions: 5, difficulty: 'Easy', time: '10 mins', attempts: 'Unlimited', bestScore: '80%' },
-      { id: 2, title: 'Balancing Chemical Equations', badge: '🟡 Intermediate', questions: 5, difficulty: 'Medium', time: '10 mins', attempts: '1 / 3', bestScore: '70%' },
-      { id: 3, title: 'Oxidation & Reduction', badge: '🔴 Challenge', questions: 5, difficulty: 'Hard', time: '15 mins', attempts: '0 / 2', bestScore: 'N/A' },
-    ],
-    'Light Reflection & Refraction': [
-      { id: 1, title: 'Mirror Formula Quiz', badge: '🟢 Basic', questions: 5, difficulty: 'Easy', time: '10 mins', attempts: 'Unlimited', bestScore: 'N/A' },
-      { id: 2, title: 'Refractive Index', badge: '🟡 Intermediate', questions: 5, difficulty: 'Medium', time: '10 mins', attempts: '0 / 3', bestScore: 'N/A' },
-    ],
+  // 1. Fetch Classes on mount
+  useEffect(() => {
+    async function loadClasses() {
+      try {
+        setIsLoading(true);
+        setApiError(null);
+        const res = await fetch('/api/classes');
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          setClassesList(json.data);
+          setSelectedClassId(json.data[0].id);
+        }
+      } catch (err) {
+        console.error('Failed to load classes from API:', err);
+        setApiError('Unable to connect to backend server. Please verify backend is running on port 5000.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadClasses();
+  }, []);
 
-    // English
-    'A Letter to God': [
-      { id: 1, title: 'Reading Comprehension', badge: '🟢 Basic', questions: 5, difficulty: 'Easy', time: '10 mins', attempts: 'Unlimited', bestScore: '90%' },
-      { id: 2, title: 'Vocabulary & Metaphors', badge: '🟡 Intermediate', questions: 5, difficulty: 'Medium', time: '10 mins', attempts: '1 / 3', bestScore: '80%' },
-    ],
-    'Nelson Mandela: Long Walk to Freedom': [
-      { id: 1, title: 'Chapter Summary Quiz', badge: '🟢 Basic', questions: 5, difficulty: 'Easy', time: '10 mins', attempts: 'Unlimited', bestScore: 'N/A' },
-      { id: 2, title: 'Key Themes & Quotes', badge: '🟡 Intermediate', questions: 5, difficulty: 'Medium', time: '10 mins', attempts: '0 / 3', bestScore: 'N/A' },
-    ],
+  // 2. Fetch Subjects when selectedClassId changes
+  useEffect(() => {
+    if (!selectedClassId) return;
+    async function loadSubjects() {
+      try {
+        setIsLoading(true);
+        setApiError(null);
+        const res = await fetch(`/api/classes/${selectedClassId}/subjects`);
+        const json = await res.json();
+        if (json.success) {
+          setSubjectsList(json.data || []);
+          setActiveSubject(null);
+          setActiveChapter(null);
+          setActiveQuiz(null);
+        }
+      } catch (err) {
+        console.error('Failed to load subjects from API:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadSubjects();
+  }, [selectedClassId]);
 
-    // Social Science
-    'The Rise of Nationalism in Europe': [
-      { id: 1, title: 'French Revolution & Idea of Nation', badge: '🟢 Basic', questions: 5, difficulty: 'Easy', time: '10 mins', attempts: 'Unlimited', bestScore: 'N/A' },
-      { id: 2, title: 'Unification of Italy & Germany', badge: '🟡 Intermediate', questions: 5, difficulty: 'Medium', time: '10 mins', attempts: '0 / 3', bestScore: 'N/A' },
-    ]
-  };
-  const [historyRecords, setHistoryRecords] = useState([
-    { id: 101, quizTitle: 'Polynomials - Basic Practice', subject: 'Mathematics', date: '2026-08-30', score: '4/5', percentage: 80, status: 'Passed' },
-    { id: 102, quizTitle: 'Real Numbers - Diagnostic', subject: 'Mathematics', date: '2026-08-28', score: '5/5', percentage: 100, status: 'Passed' },
-    { id: 103, quizTitle: 'Chemical Reactions - Quiz 1', subject: 'Science', date: '2026-08-25', score: '3/5', percentage: 60, status: 'Needs Practice' },
-  ]);
+  // 3. Fetch Chapters when activeSubject changes
+  useEffect(() => {
+    if (!activeSubject) {
+      setChaptersList([]);
+      return;
+    }
+    async function loadChapters() {
+      try {
+        setIsLoading(true);
+        setApiError(null);
+        const res = await fetch(`/api/subjects/${activeSubject.id}/chapters`);
+        const json = await res.json();
+        if (json.success) {
+          setChaptersList(json.data || []);
+          setActiveChapter(null);
+          setActiveQuiz(null);
+        }
+      } catch (err) {
+        console.error('Failed to load chapters from API:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadChapters();
+  }, [activeSubject]);
+
+  // 4. Fetch Quizzes when activeChapter changes
+  useEffect(() => {
+    if (!activeChapter) {
+      setQuizzesList([]);
+      return;
+    }
+    async function loadQuizzes() {
+      try {
+        setIsLoading(true);
+        setApiError(null);
+        const res = await fetch(`/api/chapters/${activeChapter.id}/quizzes`);
+        const json = await res.json();
+        if (json.success) {
+          setQuizzesList(json.data || []);
+          setActiveQuiz(null);
+        }
+      } catch (err) {
+        console.error('Failed to load quizzes from API:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadQuizzes();
+  }, [activeChapter]);
 
   // Active Timer Effect
   useEffect(() => {
@@ -171,10 +189,10 @@ export default function StudentDashboard() {
   };
 
   // State Updates & Auto-Save Simulation
-  const handleSelectOption = (optIdx) => {
+  const handleSelectOption = (optKey) => {
     setUserAnswers((prev) => ({
       ...prev,
-      [currentQuestionIndex]: optIdx
+      [currentQuestionIndex]: optKey
     }));
   };
 
@@ -185,54 +203,97 @@ export default function StudentDashboard() {
     }));
   };
 
-  const handleStartQuiz = () => {
-    setIsQuizRunning(true);
-    setCurrentQuestionIndex(0);
-    setUserAnswers({});
-    setMarkedForReview({});
-    setTimeLeft(600);
-    setQuizResult(null);
-    setIsReviewingMode(false);
+  const handleStartQuiz = async () => {
+    if (!activeQuiz) return;
+    try {
+      setIsLoading(true);
+      setApiError(null);
+      const res = await fetch(`/api/quizzes/${activeQuiz.id}/questions`);
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        const formatted = json.data.map((q) => ({
+          id: q.id,
+          question: q.questionText,
+          options: [
+            { key: 'A', text: q.optionA },
+            { key: 'B', text: q.optionB },
+            { key: 'C', text: q.optionC },
+            { key: 'D', text: q.optionD }
+          ]
+        }));
+        setQuizQuestions(formatted);
+        setIsQuizRunning(true);
+        setCurrentQuestionIndex(0);
+        setUserAnswers({});
+        setMarkedForReview({});
+        setTimeLeft((activeQuiz.durationMinutes || 10) * 60);
+        setQuizResult(null);
+        setIsReviewingMode(false);
+      } else {
+        alert('No questions configured for this quiz.');
+      }
+    } catch (err) {
+      console.error('Failed to load quiz questions from API:', err);
+      alert('Failed to load quiz questions. Please verify connection.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleFinalSubmission = () => {
-    let correctCount = 0;
-    quizQuestions.forEach((q, idx) => {
-      if (userAnswers[idx] === q.correct) correctCount++;
-    });
+  const handleFinalSubmission = async () => {
+    if (!activeQuiz) return;
+    try {
+      setIsSubmitting(true);
+      const answersPayload = quizQuestions.map((q, idx) => {
+        const chosen = userAnswers[idx];
+        return chosen ? { questionId: q.id, selectedAnswer: chosen } : null;
+      }).filter(Boolean);
 
-    const total = quizQuestions.length;
-    const percentage = Math.round((correctCount / total) * 100);
-    const unattempted = total - Object.keys(userAnswers).length;
-    const wrong = total - correctCount - unattempted;
-    const timeSpentSeconds = 600 - timeLeft;
+      const res = await fetch(`/api/quizzes/${activeQuiz.id}/attempts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answers: answersPayload, studentId: 1 })
+      });
+      const json = await res.json();
 
-    const evaluationPayload = {
-      score: correctCount,
-      totalQuestions: total,
-      percentage,
-      correctAnswers: correctCount,
-      wrongAnswers: wrong,
-      unattempted,
-      timeTaken: formatTime(timeSpentSeconds),
-      date: new Date().toISOString().split('T')[0]
-    };
+      if (!json.success) {
+        throw new Error(json.error || 'Submission failed');
+      }
 
-    setQuizResult(evaluationPayload);
-    setIsQuizRunning(false);
-    setShowSubmitModal(false);
+      const attempt = json.data;
+      const total = attempt.totalQuestions;
+      const correctCount = attempt.score;
+      const attemptedCount = answersPayload.length;
+      const wrong = attemptedCount - correctCount;
+      const unattempted = total - attemptedCount;
+      const totalSeconds = (activeQuiz.durationMinutes || 10) * 60;
+      const timeSpentSeconds = Math.max(0, totalSeconds - timeLeft);
 
-    // Save attempt to History
-    const newRecord = {
-      id: Date.now(),
-      quizTitle: `${activeChapter} - ${activeQuiz?.title || 'Practice Quiz'}`,
-      subject: activeSubject || 'Mathematics',
-      date: evaluationPayload.date,
-      score: `${correctCount}/${total}`,
-      percentage: percentage,
-      status: percentage >= 70 ? 'Passed' : 'Needs Practice'
-    };
-    setHistoryRecords([newRecord, ...historyRecords]);
+      const evaluationPayload = {
+        attemptId: attempt.attemptId,
+        score: correctCount,
+        totalQuestions: total,
+        percentage: attempt.percentage,
+        correctAnswers: correctCount,
+        wrongAnswers: Math.max(0, wrong),
+        unattempted: Math.max(0, unattempted),
+        timeTaken: formatTime(timeSpentSeconds),
+        date: new Date().toISOString().split('T')[0],
+        answers: attempt.answers || []
+      };
+
+      setQuizResult(evaluationPayload);
+      setIsQuizRunning(false);
+      setShowSubmitModal(false);
+
+      // Refresh history records directly from database
+      await loadAttemptsHistory();
+    } catch (err) {
+      console.error('Error submitting quiz attempt:', err);
+      alert('Error submitting quiz. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getPerformanceMessage = (percentage) => {
@@ -242,24 +303,23 @@ export default function StudentDashboard() {
     return { title: 'Keep Practicing! 💪', desc: 'Don\'t give up. Review the answers below and try again.', color: 'text-red-500' };
   };
 
+  const getSubjectIcon = (name) => {
+    const lower = (name || '').toLowerCase();
+    if (lower.includes('math')) return '📘';
+    if (lower.includes('scien')) return '🔬';
+    if (lower.includes('eng')) return '📕';
+    if (lower.includes('social') || lower.includes('hist') || lower.includes('geo')) return '🌍';
+    return '📚';
+  };
+
   const filteredSubjects = selectedSubjectFilter === 'All' 
-    ? [
-        { id: 1, name: 'Mathematics', icon: '📘' },
-        { id: 2, name: 'Science', icon: '🔬' },
-        { id: 3, name: 'English', icon: '📕' },
-        { id: 4, name: 'Social Science', icon: '🌍' }
-      ] 
-    : [
-        { id: 1, name: 'Mathematics', icon: '📘' },
-        { id: 2, name: 'Science', icon: '🔬' },
-        { id: 3, name: 'English', icon: '📕' },
-        { id: 4, name: 'Social Science', icon: '🌍' }
-      ].filter(s => s.name === selectedSubjectFilter);
+    ? subjectsList
+    : subjectsList.filter((s) => s.name === selectedSubjectFilter);
 
   // Status counters for confirmation modal
   const answeredCount = Object.keys(userAnswers).length;
   const reviewCount = Object.values(markedForReview).filter(Boolean).length;
-  const unattemptedCount = quizQuestions.length - answeredCount;
+  const unattemptedCount = Math.max(0, quizQuestions.length - answeredCount);
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 md:p-8 font-sans">
@@ -308,13 +368,13 @@ export default function StudentDashboard() {
       {/* ------------------------------------------------------------------- */}
       {/* 1. ACTIVE QUIZ ENGINE VIEW                                          */}
       {/* ------------------------------------------------------------------- */}
-      {isQuizRunning && (
+      {isQuizRunning && quizQuestions.length > 0 && (
         <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
           
           {/* Top Bar */}
           <div className="bg-slate-900 text-white p-5 flex justify-between items-center border-b border-slate-800">
             <div>
-              <h2 className="font-bold text-base md:text-lg">{activeChapter}: {activeQuiz?.title}</h2>
+              <h2 className="font-bold text-base md:text-lg">{activeChapter?.name || activeChapter}: {activeQuiz?.title}</h2>
               <p className="text-xs text-slate-400 mt-0.5">
                 Question <span className="text-white font-bold">{currentQuestionIndex + 1}</span> of {quizQuestions.length}
               </p>
@@ -351,17 +411,17 @@ export default function StudentDashboard() {
                 </div>
 
                 <h3 className="text-lg md:text-xl font-bold text-slate-800 mb-6 leading-relaxed">
-                  {quizQuestions[currentQuestionIndex].question}
+                  {quizQuestions[currentQuestionIndex]?.question}
                 </h3>
 
                 {/* Multiple Choice Options */}
                 <div className="space-y-3 mb-6">
-                  {quizQuestions[currentQuestionIndex].options.map((option, idx) => {
-                    const isSelected = userAnswers[currentQuestionIndex] === idx;
+                  {quizQuestions[currentQuestionIndex]?.options?.map((option) => {
+                    const isSelected = userAnswers[currentQuestionIndex] === option.key;
                     return (
                       <div 
-                        key={idx}
-                        onClick={() => handleSelectOption(idx)}
+                        key={option.key}
+                        onClick={() => handleSelectOption(option.key)}
                         className={`p-4 rounded-xl border-2 transition cursor-pointer flex items-center justify-between ${
                           isSelected 
                             ? 'border-blue-600 bg-blue-50/60 shadow-sm' 
@@ -369,14 +429,19 @@ export default function StudentDashboard() {
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition ${
-                            isSelected ? 'border-blue-600 bg-blue-600' : 'border-slate-300'
+                          <div className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center transition ${
+                            isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-200'
                           }`}>
-                            {isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                            {option.key}
                           </div>
                           <span className={`text-sm ${isSelected ? 'text-blue-900 font-bold' : 'text-slate-700 font-medium'}`}>
-                            {option}
+                            {option.text}
                           </span>
+                        </div>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition ${
+                          isSelected ? 'border-blue-600 bg-blue-600' : 'border-slate-300'
+                        }`}>
+                          {isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}
                         </div>
                       </div>
                     );
@@ -488,7 +553,7 @@ export default function StudentDashboard() {
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
               <div className="bg-white p-6 md:p-8 rounded-2xl max-w-md w-full shadow-2xl border border-slate-100">
                 <h3 className="text-xl font-bold text-slate-800 mb-2">Are you sure you want to submit?</h3>
-                <p className="text-xs text-slate-500 mb-6">Please check your answer summary below before finalizing.</p>
+                <p className="text-xs text-slate-500 mb-6">Your answers will be graded server-side against the database.</p>
 
                 <div className="grid grid-cols-3 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200/60 mb-6 text-center">
                   <div className="bg-white p-2.5 rounded-lg border border-slate-100">
@@ -508,15 +573,17 @@ export default function StudentDashboard() {
                 <div className="flex gap-3">
                   <button 
                     onClick={() => setShowSubmitModal(false)}
-                    className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-semibold text-xs hover:bg-slate-50"
+                    disabled={isSubmitting}
+                    className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-semibold text-xs hover:bg-slate-50 disabled:opacity-50"
                   >
                     Go Back
                   </button>
                   <button 
                     onClick={handleFinalSubmission}
-                    className="flex-1 py-2.5 rounded-xl bg-green-600 text-white font-bold text-xs hover:bg-green-700 shadow-sm"
+                    disabled={isSubmitting}
+                    className="flex-1 py-2.5 rounded-xl bg-green-600 text-white font-bold text-xs hover:bg-green-700 shadow-sm disabled:opacity-50"
                   >
-                    Yes, Submit
+                    {isSubmitting ? 'Evaluating...' : 'Yes, Submit'}
                   </button>
                 </div>
               </div>
@@ -556,7 +623,7 @@ export default function StudentDashboard() {
         <div className="max-w-3xl mx-auto bg-white p-8 md:p-10 rounded-2xl shadow-xl border border-slate-200 text-center">
           <div className="text-5xl mb-3">🎉</div>
           <h2 className="text-2xl md:text-3xl font-bold text-slate-800">Quiz Completed!</h2>
-          <p className="text-slate-500 text-xs mt-1 mb-8">Here is a breakdown of your score performance</p>
+          <p className="text-slate-500 text-xs mt-1 mb-8">Official score verified and saved to database</p>
 
           {/* Performance Badge Banner */}
           {(() => {
@@ -633,7 +700,7 @@ export default function StudentDashboard() {
           <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
             <div>
               <h2 className="text-xl font-bold text-slate-800">Answer Review</h2>
-              <p className="text-xs text-slate-500">Step-by-step solutions and explanations</p>
+              <p className="text-xs text-slate-500">Database verified solutions and answers</p>
             </div>
             <button 
               onClick={() => setIsReviewingMode(false)}
@@ -645,9 +712,11 @@ export default function StudentDashboard() {
 
           <div className="space-y-6">
             {quizQuestions.map((q, idx) => {
+              const evalAns = (quizResult.answers || []).find((a) => a.questionId === q.id);
               const userChoice = userAnswers[idx];
-              const isCorrect = userChoice === q.correct;
+              const isCorrect = evalAns ? evalAns.isCorrect : false;
               const isUnattempted = userChoice === undefined;
+              const correctChoiceKey = evalAns?.correctAnswer;
 
               return (
                 <div key={q.id} className="p-5 rounded-2xl border border-slate-200 bg-slate-50/50">
@@ -661,24 +730,27 @@ export default function StudentDashboard() {
                   <h4 className="font-bold text-slate-800 text-sm mb-4">{q.question}</h4>
 
                   <div className="space-y-2 text-xs mb-4">
-                    {q.options.map((opt, oIdx) => {
+                    {q.options?.map((opt) => {
                       let optionStyle = "bg-white border-slate-200 text-slate-700";
-                      if (oIdx === q.correct) optionStyle = "bg-green-50 border-green-500 text-green-900 font-bold";
-                      if (userChoice === oIdx && !isCorrect) optionStyle = "bg-red-50 border-red-400 text-red-900 font-bold";
+                      if (opt.key === correctChoiceKey) optionStyle = "bg-green-50 border-green-500 text-green-900 font-bold";
+                      if (userChoice === opt.key && !isCorrect) optionStyle = "bg-red-50 border-red-400 text-red-900 font-bold";
 
                       return (
-                        <div key={oIdx} className={`p-3 rounded-xl border flex justify-between items-center ${optionStyle}`}>
-                          <span>{opt}</span>
-                          {oIdx === q.correct && <span className="font-bold text-green-700">Correct Choice ✅</span>}
-                          {userChoice === oIdx && !isCorrect && <span className="font-bold text-red-600">Your Choice ❌</span>}
+                        <div key={opt.key} className={`p-3 rounded-xl border flex justify-between items-center ${optionStyle}`}>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold">{opt.key}.</span>
+                            <span>{opt.text}</span>
+                          </div>
+                          {opt.key === correctChoiceKey && <span className="font-bold text-green-700">Correct Choice ✅</span>}
+                          {userChoice === opt.key && !isCorrect && <span className="font-bold text-red-600">Your Choice ❌</span>}
                         </div>
                       );
                     })}
                   </div>
 
                   <div className="bg-blue-50/60 border border-blue-100 p-3.5 rounded-xl text-xs text-blue-950">
-                    <strong className="block font-bold text-blue-900 mb-1">💡 Explanation:</strong>
-                    {q.explanation}
+                    <strong className="block font-bold text-blue-900 mb-1">💡 Solution Key:</strong>
+                    Correct Option: <span className="font-bold text-blue-950">Option {correctChoiceKey}</span> (verified by server).
                   </div>
                 </div>
               );
@@ -692,44 +764,71 @@ export default function StudentDashboard() {
       {/* ------------------------------------------------------------------- */}
       {!isQuizRunning && !quizResult && activeTab === 'dashboard' && (
         <>
+          {/* API Connection Warning / Error Banner */}
+          {apiError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs mb-6 flex justify-between items-center shadow-xs">
+              <span>⚠️ {apiError}</span>
+              <button onClick={() => window.location.reload()} className="underline font-bold hover:text-red-900">
+                Retry Connection
+              </button>
+            </div>
+          )}
+
+          {/* Loading Indicator */}
+          {isLoading && !isQuizRunning && (
+            <div className="bg-blue-50 border border-blue-100 text-blue-700 px-4 py-2.5 rounded-xl text-xs mb-6 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping"></span>
+              <span>Fetching live curriculum from PostgreSQL database...</span>
+            </div>
+          )}
+
           {/* Curriculum Selection Bar */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <h3 className="font-bold text-slate-800 text-base">Select Curriculum</h3>
-              <p className="text-xs text-slate-500">Filter subjects and class levels</p>
+              <p className="text-xs text-slate-500">Filter subjects and educational tiers from database</p>
             </div>
 
             <div className="flex gap-3 w-full sm:w-auto">
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Class</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Class Level</label>
                 <select 
-                  value={selectedClass} 
-                  onChange={(e) => setSelectedClass(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 text-slate-800 font-semibold text-xs rounded-xl px-3 py-2 outline-none"
+                  value={selectedClassId || ''} 
+                  onChange={(e) => setSelectedClassId(Number(e.target.value))}
+                  className="bg-slate-50 border border-slate-200 text-slate-800 font-semibold text-xs rounded-xl px-3 py-2 outline-none cursor-pointer"
                 >
-                  <option value="8th">Class 8th</option>
-                  <option value="9th">Class 9th</option>
-                  <option value="10th">Class 10th</option>
+                  {classesList.map((cls) => (
+                    <option key={cls.id} value={cls.id}>
+                      {cls.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Subject</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Subject Filter</label>
                 <select 
                   value={selectedSubjectFilter} 
                   onChange={(e) => {
-                    setSelectedSubjectFilter(e.target.value);
-                    setActiveSubject(e.target.value !== 'All' ? e.target.value : null);
+                    const val = e.target.value;
+                    setSelectedSubjectFilter(val);
+                    if (val === 'All') {
+                      setActiveSubject(null);
+                    } else {
+                      const matched = subjectsList.find((s) => s.name === val);
+                      setActiveSubject(matched || null);
+                    }
                     setActiveChapter(null);
                     setActiveQuiz(null);
                   }}
-                  className="bg-slate-50 border border-slate-200 text-slate-800 font-semibold text-xs rounded-xl px-3 py-2 outline-none"
+                  className="bg-slate-50 border border-slate-200 text-slate-800 font-semibold text-xs rounded-xl px-3 py-2 outline-none cursor-pointer"
                 >
                   <option value="All">All Subjects</option>
-                  <option value="Mathematics">Mathematics</option>
-                  <option value="Science">Science</option>
-                  <option value="English">English</option>
-                  <option value="Social Science">Social Science</option>
+                  {Array.from(new Set(subjectsList.map((s) => s.name))).map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -747,7 +846,11 @@ export default function StudentDashboard() {
                 <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80">
                   <div className="text-2xl mb-1">🎯</div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase">Average Score</p>
-                  <h3 className="text-xl font-bold text-blue-600 mt-0.5">80%</h3>
+                  <h3 className="text-xl font-bold text-blue-600 mt-0.5">
+                    {historyRecords.length > 0 
+                      ? Math.round(historyRecords.reduce((acc, r) => acc + (r.percentage || 0), 0) / historyRecords.length) + '%'
+                      : '100%'}
+                  </h3>
                 </div>
                 <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80">
                   <div className="text-2xl mb-1">🔥</div>
@@ -755,48 +858,63 @@ export default function StudentDashboard() {
                   <h3 className="text-xl font-bold text-amber-600 mt-0.5">5 Days</h3>
                 </div>
                 <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80">
-                  <div className="text-2xl mb-1">⏳</div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Pending Quizzes</p>
-                  <h3 className="text-xl font-bold text-red-500 mt-0.5">3</h3>
+                  <div className="text-2xl mb-1">📚</div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Subjects Available</p>
+                  <h3 className="text-xl font-bold text-indigo-600 mt-0.5">{subjectsList.length}</h3>
                 </div>
               </div>
 
               {/* Continue Banner */}
-              <div className="bg-blue-600 text-white p-6 rounded-2xl shadow-md mb-8 flex justify-between items-center">
-                <div>
-                  <p className="text-[10px] uppercase font-bold tracking-wider text-blue-200 mb-1">Continue Where You Left Off</p>
-                  <h2 className="text-lg font-bold">Mathematics ({selectedClass})</h2>
-                  <p className="text-blue-100 text-xs">Chapter: Polynomials</p>
+              {subjectsList.length > 0 && (
+                <div className="bg-blue-600 text-white p-6 rounded-2xl shadow-md mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div>
+                    <p className="text-[10px] uppercase font-bold tracking-wider text-blue-200 mb-1">Active Curriculum</p>
+                    <h2 className="text-lg font-bold">
+                      {classesList.find((c) => c.id === Number(selectedClassId))?.name || 'Curriculum'} — {subjectsList[0]?.name}
+                    </h2>
+                    <p className="text-blue-100 text-xs">Jump straight into chapters and interactive assessments</p>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setActiveSubject(subjectsList[0]);
+                      setActiveChapter(null);
+                      setActiveQuiz(null);
+                    }}
+                    className="bg-white text-blue-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-50 transition shadow-sm"
+                  >
+                    Explore Subject →
+                  </button>
                 </div>
-                <button 
-                  onClick={() => {
-                    setActiveSubject('Mathematics');
-                    setActiveChapter('Polynomials');
-                  }}
-                  className="bg-white text-blue-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-50 transition"
-                >
-                  Continue Quiz
-                </button>
-              </div>
+              )}
 
               {/* Subject Grid */}
               <div>
                 <h2 className="text-lg font-bold text-slate-800 mb-1">Subjects</h2>
-                <p className="text-slate-500 text-xs mb-4">Select a subject card to view chapters</p>
+                <p className="text-slate-500 text-xs mb-4">Select a subject card to view chapters and quizzes</p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {filteredSubjects.map((subj) => (
-                    <div 
-                      key={subj.id} 
-                      onClick={() => setActiveSubject(subj.name)}
-                      className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80 hover:shadow-md hover:border-blue-300 transition cursor-pointer flex flex-col items-start group"
-                    >
-                      <div className="text-3xl mb-3 p-3 bg-slate-50 rounded-xl group-hover:bg-blue-50">{subj.icon}</div>
-                      <h3 className="font-bold text-slate-800 text-base group-hover:text-blue-600">{subj.name}</h3>
-                      <span className="text-xs text-blue-600 font-semibold mt-2">View Chapters →</span>
-                    </div>
-                  ))}
-                </div>
+                {filteredSubjects.length === 0 ? (
+                  <div className="bg-white p-8 rounded-2xl text-center text-slate-500 text-xs border border-slate-200">
+                    No subjects found for this class tier.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {filteredSubjects.map((subj) => (
+                      <div 
+                        key={subj.id} 
+                        onClick={() => {
+                          setActiveSubject(subj);
+                          setActiveChapter(null);
+                          setActiveQuiz(null);
+                        }}
+                        className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80 hover:shadow-md hover:border-blue-300 transition cursor-pointer flex flex-col items-start group"
+                      >
+                        <div className="text-3xl mb-3 p-3 bg-slate-50 rounded-xl group-hover:bg-blue-50">{getSubjectIcon(subj.name)}</div>
+                        <h3 className="font-bold text-slate-800 text-base group-hover:text-blue-600">{subj.name}</h3>
+                        <span className="text-xs text-blue-600 font-semibold mt-2">View Chapters →</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -805,36 +923,47 @@ export default function StudentDashboard() {
           {activeSubject && !activeChapter && (
             <div>
               <button 
-                onClick={() => setActiveSubject(null)}
-                className="text-xs font-semibold text-blue-600 hover:text-blue-800 mb-3 block"
+                onClick={() => {
+                  setActiveSubject(null);
+                  setActiveChapter(null);
+                  setActiveQuiz(null);
+                }}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-800 mb-3 block cursor-pointer"
               >
                 ← Back to All Subjects
               </button>
-              <h2 className="text-xl font-bold text-slate-800">{activeSubject} - Class {selectedClass}</h2>
-              <p className="text-slate-500 text-xs mb-6">Select a chapter to explore quizzes</p>
+              <h2 className="text-xl font-bold text-slate-800">
+                {activeSubject.name} — {classesList.find((c) => c.id === Number(selectedClassId))?.name || 'Class'}
+              </h2>
+              <p className="text-slate-500 text-xs mb-6">Select a chapter to explore practice quizzes</p>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {(chaptersData[activeSubject] || []).map((chap) => {
-                  {/* Dynamic Quiz Count Sync Fix */}
-                  const actualQuizCount = (quizzesData[chap.title] || []).length;
-                  return (
-                    <div key={chap.id} className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 flex flex-col justify-between">
+              {chaptersList.length === 0 ? (
+                <div className="bg-white p-8 rounded-2xl text-center text-slate-500 text-xs border border-slate-200">
+                  No chapters registered for {activeSubject.name} yet.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {chaptersList.map((chap) => (
+                    <div key={chap.id} className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 flex flex-col justify-between hover:shadow-md transition">
                       <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase">Chapter {chap.chapterNum}</p>
-                        <h3 className="font-bold text-slate-800 text-base mt-1 mb-2">{chap.title}</h3>
-                        <p className="text-xs text-slate-500 mb-4">📝 {actualQuizCount} Quizzes Available</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">Chapter {chap.id}</p>
+                        <h3 className="font-bold text-slate-800 text-base mt-1 mb-2">{chap.name}</h3>
+                        <p className="text-xs text-slate-500 mb-4">📝 Practice assessments available</p>
                       </div>
 
                       <button 
-                        onClick={() => setActiveChapter(chap.title)}
+                        onClick={() => {
+                          setActiveChapter(chap);
+                          setActiveQuiz(null);
+                        }}
                         className="w-full bg-blue-600 text-white py-2.5 rounded-xl text-xs font-semibold hover:bg-blue-700 transition"
                       >
                         View Chapter Quizzes →
                       </button>
                     </div>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -842,44 +971,53 @@ export default function StudentDashboard() {
           {activeChapter && !activeQuiz && (
             <div>
               <button 
-                onClick={() => setActiveChapter(null)}
-                className="text-xs font-semibold text-blue-600 hover:text-blue-800 mb-3 block"
+                onClick={() => {
+                  setActiveChapter(null);
+                  setActiveQuiz(null);
+                }}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-800 mb-3 block cursor-pointer"
               >
                 ← Back to Chapters
               </button>
-              <h2 className="text-xl font-bold text-slate-800">{activeChapter} - Practice Quizzes</h2>
-              <p className="text-slate-500 text-xs mb-6">Select a difficulty tier to start</p>
+              <h2 className="text-xl font-bold text-slate-800">{activeChapter.name} — Practice Quizzes</h2>
+              <p className="text-slate-500 text-xs mb-6">Select a quiz to test your mastery</p>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {(quizzesData[activeChapter] || quizzesData['Polynomials']).map((quiz) => (
-                  <div key={quiz.id} className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 flex flex-col justify-between hover:shadow-md transition">
-                    <div>
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
-                          {quiz.badge}
-                        </span>
-                        <span className="text-xs font-semibold text-green-600">Best: {quiz.bestScore}</span>
+              {quizzesList.length === 0 ? (
+                <div className="bg-white p-8 rounded-2xl text-center text-slate-500 text-xs border border-slate-200">
+                  No quizzes configured for this chapter yet.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {quizzesList.map((quiz) => (
+                    <div key={quiz.id} className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 flex flex-col justify-between hover:shadow-md transition">
+                      <div>
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
+                            🟢 Standard
+                          </span>
+                          <span className="text-xs font-semibold text-green-600">Total: {quiz.totalMarks} Marks</span>
+                        </div>
+
+                        <h3 className="font-bold text-slate-800 text-base mb-4">{quiz.title}</h3>
+
+                        <div className="space-y-1.5 text-xs text-slate-600 mb-6">
+                          <p>❓ <strong>Total Marks:</strong> {quiz.totalMarks}</p>
+                          <p>⏱️ <strong>Time:</strong> {quiz.durationMinutes} mins</p>
+                          <p>🎯 <strong>Passing Score:</strong> 60%</p>
+                          <p>🔄 <strong>Attempts:</strong> Unlimited</p>
+                        </div>
                       </div>
 
-                      <h3 className="font-bold text-slate-800 text-base mb-4">{quiz.title}</h3>
-
-                      <div className="space-y-1.5 text-xs text-slate-600 mb-6">
-                        <p>❓ <strong>Questions:</strong> {quiz.questions}</p>
-                        <p>⏱️ <strong>Time:</strong> {quiz.time}</p>
-                        <p>🎯 <strong>Difficulty:</strong> {quiz.difficulty}</p>
-                        <p>🔄 <strong>Attempts Allowed:</strong> {quiz.attempts}</p>
-                      </div>
+                      <button 
+                        onClick={() => setActiveQuiz(quiz)}
+                        className="w-full bg-blue-600 text-white py-2.5 rounded-xl text-xs font-semibold hover:bg-blue-700 transition cursor-pointer"
+                      >
+                        Select Quiz
+                      </button>
                     </div>
-
-                    <button 
-                      onClick={() => setActiveQuiz(quiz)}
-                      className="w-full bg-blue-600 text-white py-2.5 rounded-xl text-xs font-semibold hover:bg-blue-700 transition"
-                    >
-                      Start Quiz
-                    </button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -888,26 +1026,26 @@ export default function StudentDashboard() {
             <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-md border border-slate-200">
               <button 
                 onClick={() => setActiveQuiz(null)}
-                className="text-xs font-semibold text-blue-600 hover:text-blue-800 mb-4 block"
+                className="text-xs font-semibold text-blue-600 hover:text-blue-800 mb-4 block cursor-pointer"
               >
                 ← Back to Quiz Selection
               </button>
 
-              <h2 className="text-2xl font-bold text-slate-800 mb-1">{activeChapter}: {activeQuiz.title}</h2>
+              <h2 className="text-2xl font-bold text-slate-800 mb-1">{activeChapter?.name}: {activeQuiz.title}</h2>
               <p className="text-slate-500 text-xs mb-6">Read instructions before starting the timer.</p>
 
               <div className="grid grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl mb-6 text-center border border-slate-100">
                 <div>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">Questions</p>
-                  <p className="text-base font-bold text-slate-800">{activeQuiz.questions}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Marks</p>
+                  <p className="text-base font-bold text-slate-800">{activeQuiz.totalMarks}</p>
                 </div>
                 <div>
                   <p className="text-[10px] text-slate-400 font-bold uppercase">Duration</p>
-                  <p className="text-base font-bold text-slate-800">{activeQuiz.time}</p>
+                  <p className="text-base font-bold text-slate-800">{activeQuiz.durationMinutes} mins</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">Difficulty</p>
-                  <p className="text-base font-bold text-blue-600">{activeQuiz.difficulty}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Passing</p>
+                  <p className="text-base font-bold text-blue-600">60%</p>
                 </div>
               </div>
 
@@ -917,15 +1055,16 @@ export default function StudentDashboard() {
                   <li>Read every question carefully before choosing your answer.</li>
                   <li>Use the right side navigator grid to review or mark questions.</li>
                   <li>Answers auto-save immediately to frontend state upon selection.</li>
-                  <li>Ensure you submit before the 10-minute timer expires.</li>
+                  <li>Ensure you submit before the timer expires. Submissions are scored against the database.</li>
                 </ul>
               </div>
 
               <button 
                 onClick={handleStartQuiz}
-                className="w-full bg-green-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-green-700 transition shadow-sm"
+                disabled={isLoading}
+                className="w-full bg-green-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-green-700 transition shadow-sm disabled:opacity-50 cursor-pointer"
               >
-                I'm Ready - Start Quiz
+                {isLoading ? 'Loading Questions...' : "I'm Ready - Start Quiz"}
               </button>
             </div>
           )}
@@ -939,79 +1078,91 @@ export default function StudentDashboard() {
         <div className="max-w-4xl mx-auto space-y-6">
           <div className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
             <h2 className="text-lg font-bold text-slate-800 mb-1">Overall Performance</h2>
-            <p className="text-xs text-slate-500 mb-4">Total curriculum completion rate</p>
-            <div className="flex items-center gap-4">
-              <div className="flex-1 bg-slate-100 h-4 rounded-full overflow-hidden">
-                <div className="bg-blue-600 h-full" style={{ width: '65%' }}></div>
+            <p className="text-xs text-slate-500 mb-4">Calculated across all completed database attempts</p>
+            {historyRecords.length === 0 ? (
+              <p className="text-xs text-slate-400">No attempts yet. Complete quizzes to view your overall performance analytics.</p>
+            ) : (
+              <div className="flex items-center gap-4">
+                <div className="flex-1 bg-slate-100 h-4 rounded-full overflow-hidden">
+                  <div 
+                    className="bg-blue-600 h-full transition-all duration-500" 
+                    style={{ 
+                      width: `${Math.round(historyRecords.reduce((acc, r) => acc + (r.percentage || 0), 0) / historyRecords.length)}%` 
+                    }}
+                  ></div>
+                </div>
+                <span className="font-bold text-blue-600 text-sm">
+                  {Math.round(historyRecords.reduce((acc, r) => acc + (r.percentage || 0), 0) / historyRecords.length)}%
+                </span>
               </div>
-              <span className="font-bold text-blue-600 text-sm">65%</span>
-            </div>
+            )}
           </div>
 
           <div className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
             <h3 className="text-base font-bold text-slate-800 mb-4">Subject-wise Performance</h3>
-            <div className="space-y-4 text-xs">
-              <div>
-                <div className="flex justify-between font-semibold mb-1">
-                  <span>Mathematics</span>
-                  <span className="text-blue-600">80%</span>
-                </div>
-                <div className="bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                  <div className="bg-blue-600 h-full" style={{ width: '80%' }}></div>
-                </div>
+            {historyRecords.length === 0 ? (
+              <p className="text-xs text-slate-400">No subject quiz attempts recorded in database yet.</p>
+            ) : (
+              <div className="space-y-4 text-xs">
+                {(() => {
+                  const subjectStats = {};
+                  historyRecords.forEach((r) => {
+                    const sName = r.subjectName || r.subject || 'Curriculum';
+                    if (!subjectStats[sName]) subjectStats[sName] = { totalPct: 0, count: 0 };
+                    subjectStats[sName].totalPct += (r.percentage || 0);
+                    subjectStats[sName].count += 1;
+                  });
+                  return Object.entries(subjectStats).map(([sName, stat]) => {
+                    const avg = Math.round(stat.totalPct / stat.count);
+                    return (
+                      <div key={sName}>
+                        <div className="flex justify-between font-semibold mb-1">
+                          <span>{sName}</span>
+                          <span className="text-blue-600 font-bold">{avg}% ({stat.count} attempt{stat.count > 1 ? 's' : ''})</span>
+                        </div>
+                        <div className="bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                          <div className="bg-blue-600 h-full transition-all duration-500" style={{ width: `${avg}%` }}></div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
-              <div>
-                <div className="flex justify-between font-semibold mb-1">
-                  <span>Science</span>
-                  <span className="text-blue-600">65%</span>
-                </div>
-                <div className="bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                  <div className="bg-blue-600 h-full" style={{ width: '65%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between font-semibold mb-1">
-                  <span>English</span>
-                  <span className="text-blue-600">72%</span>
-                </div>
-                <div className="bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                  <div className="bg-blue-600 h-full" style={{ width: '72%' }}></div>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
-            <h3 className="text-base font-bold text-slate-800 mb-4">Chapter Progress</h3>
-            <div className="space-y-4 text-xs">
-              <div>
-                <div className="flex justify-between font-semibold mb-1">
-                  <span>Polynomials</span>
-                  <span className="text-slate-600">80%</span>
-                </div>
-                <div className="bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                  <div className="bg-green-600 h-full" style={{ width: '80%' }}></div>
-                </div>
+            <h3 className="text-base font-bold text-slate-800 mb-4">Chapter Mastery Breakdown</h3>
+            {historyRecords.length === 0 ? (
+              <p className="text-xs text-slate-400">No chapter quiz attempts recorded in database yet.</p>
+            ) : (
+              <div className="space-y-4 text-xs">
+                {(() => {
+                  const chapterStats = {};
+                  historyRecords.forEach((r) => {
+                    const cName = r.chapterName || r.quizTitle || 'Chapter';
+                    if (!chapterStats[cName]) chapterStats[cName] = { totalPct: 0, count: 0 };
+                    chapterStats[cName].totalPct += (r.percentage || 0);
+                    chapterStats[cName].count += 1;
+                  });
+                  return Object.entries(chapterStats).map(([cName, stat]) => {
+                    const avg = Math.round(stat.totalPct / stat.count);
+                    const color = avg >= 70 ? 'bg-green-600' : avg >= 50 ? 'bg-amber-500' : 'bg-red-500';
+                    return (
+                      <div key={cName}>
+                        <div className="flex justify-between font-semibold mb-1">
+                          <span>{cName}</span>
+                          <span className="text-slate-700 font-bold">{avg}%</span>
+                        </div>
+                        <div className="bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                          <div className={`${color} h-full transition-all duration-500`} style={{ width: `${avg}%` }}></div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
-              <div>
-                <div className="flex justify-between font-semibold mb-1">
-                  <span>Linear Equations</span>
-                  <span className="text-slate-600">50%</span>
-                </div>
-                <div className="bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                  <div className="bg-amber-500 h-full" style={{ width: '50%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between font-semibold mb-1">
-                  <span>Number Systems</span>
-                  <span className="text-slate-600">70%</span>
-                </div>
-                <div className="bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                  <div className="bg-blue-600 h-full" style={{ width: '70%' }}></div>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       )}
@@ -1022,38 +1173,50 @@ export default function StudentDashboard() {
       {!isQuizRunning && !quizResult && activeTab === 'history' && (
         <div className="max-w-4xl mx-auto bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
           <h2 className="text-lg font-bold text-slate-800 mb-1">Quiz History</h2>
-          <p className="text-xs text-slate-500 mb-6">Recent exam attempts and scores</p>
+          <p className="text-xs text-slate-500 mb-6">Live exam attempts and evaluation scores from PostgreSQL database</p>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-400 font-bold uppercase">
-                  <th className="p-3">Quiz Title</th>
-                  <th className="p-3">Subject</th>
-                  <th className="p-3">Date</th>
-                  <th className="p-3">Score</th>
-                  <th className="p-3">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {historyRecords.map((rec) => (
-                  <tr key={rec.id} className="hover:bg-slate-50/80 transition">
-                    <td className="p-3 font-bold text-slate-800">{rec.quizTitle}</td>
-                    <td className="p-3 text-slate-600">{rec.subject}</td>
-                    <td className="p-3 text-slate-500">{rec.date}</td>
-                    <td className="p-3 font-bold text-blue-600">{rec.score} ({rec.percentage}%)</td>
-                    <td className="p-3">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                        rec.percentage >= 70 ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                      }`}>
-                        {rec.status}
-                      </span>
-                    </td>
+          {historyRecords.length === 0 ? (
+            <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+              <p className="text-xs text-slate-500">No quiz attempts recorded in the database yet.</p>
+              <p className="text-[11px] text-slate-400 mt-1">Start a quiz from the dashboard to test your skills!</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-400 font-bold uppercase">
+                    <th className="p-3">Quiz Title</th>
+                    <th className="p-3">Subject</th>
+                    <th className="p-3">Date</th>
+                    <th className="p-3">Score</th>
+                    <th className="p-3">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {historyRecords.map((rec) => {
+                    const displayDate = rec.attemptedAt ? new Date(rec.attemptedAt).toLocaleDateString() : (rec.date || 'Recent');
+                    const displaySubject = rec.subjectName || rec.subject || 'Curriculum';
+                    const isPassed = (rec.percentage || 0) >= 60;
+                    return (
+                      <tr key={rec.id} className="hover:bg-slate-50/80 transition">
+                        <td className="p-3 font-bold text-slate-800">{rec.quizTitle}</td>
+                        <td className="p-3 text-slate-600">{displaySubject}</td>
+                        <td className="p-3 text-slate-500">{displayDate}</td>
+                        <td className="p-3 font-bold text-blue-600">{rec.score}/{rec.totalQuestions} ({rec.percentage}%)</td>
+                        <td className="p-3">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                            isPassed ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            {isPassed ? 'Passed' : 'Needs Practice'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>
