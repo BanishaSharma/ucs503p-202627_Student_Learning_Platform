@@ -11,7 +11,9 @@ import {
   findQuestionsForScoring,
   insertQuizAttempt,
   insertAttemptAnswer,
-  findStudentAttempts
+  findStudentAttempts,
+  findQuizzesForStudent,
+  findQuizClassId
 } from "../db/queries.js";
 import { getClient } from "../db/index.js";
 import { AppError } from "../middleware/errorHandler.js";
@@ -28,16 +30,23 @@ import type {
 } from "../types/quiz.types.js";
 
 /**
- * Retrieve all classes.
+ * Retrieve all classes, optionally scoped to a student's assigned class.
  */
-export async function getClasses(): Promise<ClassItem[]> {
+export async function getClasses(studentClassId?: number): Promise<ClassItem[]> {
+  if (studentClassId) {
+    const singleClass = await findClassById(studentClassId);
+    return singleClass ? [singleClass] : [];
+  }
   return await findClasses();
 }
 
 /**
- * Retrieve subjects belonging to a class.
+ * Retrieve subjects belonging to a class with student enrollment enforcement.
  */
-export async function getSubjectsByClass(classId: number): Promise<SubjectItem[]> {
+export async function getSubjectsByClass(classId: number, studentClassId?: number): Promise<SubjectItem[]> {
+  if (studentClassId && studentClassId !== classId) {
+    throw new AppError("Access restricted: You may only access content for your enrolled class.", 403);
+  }
   const classRecord = await findClassById(classId);
   if (!classRecord) {
     throw new AppError(`Class with ID ${classId} not found`, 404);
@@ -58,11 +67,15 @@ export async function getChaptersBySubject(subjectId: number): Promise<ChapterIt
 
 /**
  * Retrieve quizzes belonging to a chapter.
+ * If studentClassId is provided, returns only published quizzes for the student's class.
  */
-export async function getQuizzesByChapter(chapterId: number): Promise<QuizItem[]> {
+export async function getQuizzesByChapter(chapterId: number, studentClassId?: number): Promise<QuizItem[]> {
   const chapterRecord = await findChapterById(chapterId);
   if (!chapterRecord) {
     throw new AppError(`Chapter with ID ${chapterId} not found`, 404);
+  }
+  if (studentClassId !== undefined) {
+    return await findQuizzesForStudent(chapterId, studentClassId);
   }
   return await findQuizzesByChapterId(chapterId);
 }
@@ -82,15 +95,25 @@ export async function getQuestionsForQuiz(quizId: number): Promise<StudentQuesti
 /**
  * Evaluates and scores a submitted quiz attempt server-side within a database transaction.
  * Ignores any client-submitted score fields.
+ * Enforces that students can only submit attempts for quizzes in their assigned class.
  */
 export async function submitQuizAttempt(
   quizId: number,
   answers: SubmittedAnswer[],
-  studentId?: number
+  studentId?: number,
+  studentClassId?: number
 ): Promise<QuizAttemptResult> {
   const quizRecord = await findQuizById(quizId);
   if (!quizRecord) {
     throw new AppError(`Quiz with ID ${quizId} not found`, 404);
+  }
+
+  // Validate student class authorization
+  if (studentClassId !== undefined) {
+    const quizClassId = await findQuizClassId(quizId);
+    if (quizClassId && quizClassId !== studentClassId) {
+      throw new AppError("Forbidden: You are not authorized to attempt quizzes outside your assigned class.", 403);
+    }
   }
 
   // Fetch official correct answers from database

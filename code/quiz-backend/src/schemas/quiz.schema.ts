@@ -26,9 +26,7 @@ export const submittedAnswerSchema = z.object({
  */
 export const submitAttemptSchema = z.object({
   studentId: z.number().int().positive().optional(),
-  answers: z
-    .array(submittedAnswerSchema, { message: "answers array is required" })
-    .min(1, "At least one answer must be submitted")
+  answers: z.array(submittedAnswerSchema).default([])
 });
 
 export type SubmitAttemptInput = z.infer<typeof submitAttemptSchema>;

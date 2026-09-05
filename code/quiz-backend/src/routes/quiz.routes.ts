@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { asyncHandler } from "../middleware/asyncHandler.js";
+import { optionalAuth } from "../middleware/auth.middleware.js";
 import {
   getClassesHandler,
   getSubjectsByClassHandler,
@@ -11,6 +12,9 @@ import {
 } from "../controllers/quiz.controller.js";
 
 const router = Router();
+
+// Apply optionalAuth across quiz routes so user profile is attached if token is supplied
+router.use(asyncHandler(optionalAuth));
 
 // Browsing Hierarchy Endpoints
 router.get("/classes", asyncHandler(getClassesHandler));

@@ -461,3 +461,87 @@ None
 - **HTTP Status:** `400 Bad Request` (Invalid `studentId` format)
 - **HTTP Status:** `500 Internal Server Error`
 
+---
+
+## 9. User Authentication (Login)
+
+### Method
+`POST`
+
+### URL
+`/api/auth/login`
+
+### Status
+**STATUS: IMPLEMENTED**
+
+### Purpose
+Authenticate a user (admin, teacher, student) with email and password, returning a signed JWT token and user profile.
+
+### Authentication Required
+None
+
+### Request Body
+```json
+{
+  "email": "harpreet.math@punjab.gov.in",
+  "password": "Password@123"
+}
+```
+
+### Success Response
+- **HTTP Status:** `200 OK`
+```json
+{
+  "success": true,
+  "data": {
+    "token": "eyJhbGciOi...",
+    "user": {
+      "id": 4,
+      "name": "Harpreet Kaur (Math/Sci Teacher)",
+      "email": "harpreet.math@punjab.gov.in",
+      "role": "teacher",
+      "isActive": true,
+      "teacherId": 4
+    }
+  }
+}
+```
+
+---
+
+## 10. Teacher Management & Authoring
+
+### Endpoints
+- `GET /api/teacher/classes`: Retrieve assigned classes and subjects for authenticated teacher.
+- `GET /api/teacher/quizzes`: Retrieve quizzes created by or assigned to authenticated teacher.
+- `POST /api/teacher/quizzes`: Create bilingual quiz with English and Punjabi questions.
+- `PUT /api/teacher/quizzes/:quizId` & `PATCH /api/teacher/quizzes/:quizId`: Update quiz details or publish/draft status.
+- `DELETE /api/teacher/quizzes/:quizId`: Delete a quiz.
+- `POST /api/teacher/quizzes/upload-excel`: Upload spreadsheet (`.xlsx`) to parse and batch-import quiz questions.
+- `GET /api/teacher/results`: Retrieve student attempt scores and percentages across assigned classes.
+
+---
+
+## 11. Student Academic Doubts & Q&A
+
+### Endpoints
+- `POST /api/queries`: Submit academic question from student to subject teacher.
+- `GET /api/queries`: List queries (students view their own; teachers view questions for their assigned classes).
+- `GET /api/queries/:queryId`: Retrieve doubt thread with teacher responses.
+- `POST /api/queries/:queryId/responses`: Teacher replies to a student question.
+- `PATCH /api/queries/:queryId/status`: Toggle doubt status between `open` and `resolved`.
+
+---
+
+## 12. State Admin Oversight & Provisioning
+
+### Endpoints
+- `GET /api/admin/stats`: Returns live platform metrics (`totalStudents`, `totalTeachers`, `totalQuizzes`, `totalAttempts`, `activeUsers`).
+- `GET /api/admin/teachers`: List all registered teachers with assigned classes and active statuses.
+- `POST /api/admin/teachers`: Provision a new teacher account with credentials and employee ID.
+- `POST /api/admin/teachers/:teacherId/assignments`: Assign class and subject teaching responsibility.
+- `GET /api/admin/students`: List enrolled students with classes, roll numbers, sections, and active statuses.
+- `POST /api/admin/students`: Enroll a new student into Class 8, 9, or 10.
+- `PATCH /api/admin/users/:userId/status`: Toggle user account active status (`true` / `false`). Deactivated users are blocked from logging in.
+
+

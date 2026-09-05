@@ -6,8 +6,9 @@ import { sendSuccess } from "../utils/apiResponse.js";
 /**
  * GET /api/classes
  */
-export async function getClassesHandler(_req: Request, res: Response): Promise<void> {
-  const classes = await quizService.getClasses();
+export async function getClassesHandler(req: Request, res: Response): Promise<void> {
+  const studentClassId = req.user?.role === "student" ? req.user.classId : undefined;
+  const classes = await quizService.getClasses(studentClassId);
   sendSuccess(res, classes);
 }
 
@@ -16,7 +17,8 @@ export async function getClassesHandler(_req: Request, res: Response): Promise<v
  */
 export async function getSubjectsByClassHandler(req: Request, res: Response): Promise<void> {
   const classId = positiveIntegerParamSchema.parse(req.params["classId"]);
-  const subjects = await quizService.getSubjectsByClass(classId);
+  const studentClassId = req.user?.role === "student" ? req.user.classId : undefined;
+  const subjects = await quizService.getSubjectsByClass(classId, studentClassId);
   sendSuccess(res, subjects);
 }
 
@@ -34,7 +36,8 @@ export async function getChaptersBySubjectHandler(req: Request, res: Response): 
  */
 export async function getQuizzesByChapterHandler(req: Request, res: Response): Promise<void> {
   const chapterId = positiveIntegerParamSchema.parse(req.params["chapterId"]);
-  const quizzes = await quizService.getQuizzesByChapter(chapterId);
+  const studentClassId = req.user?.role === "student" ? req.user.classId : undefined;
+  const quizzes = await quizService.getQuizzesByChapter(chapterId, studentClassId);
   sendSuccess(res, quizzes);
 }
 
@@ -53,7 +56,12 @@ export async function getQuestionsForQuizHandler(req: Request, res: Response): P
 export async function submitQuizAttemptHandler(req: Request, res: Response): Promise<void> {
   const quizId = positiveIntegerParamSchema.parse(req.params["quizId"]);
   const payload = submitAttemptSchema.parse(req.body);
-  const result = await quizService.submitQuizAttempt(quizId, payload.answers, payload.studentId);
+
+  // Authenticated student identity takes strict precedence over any client-submitted studentId
+  const effectiveStudentId = req.user?.studentId || payload.studentId;
+  const studentClassId = req.user?.role === "student" ? req.user.classId : undefined;
+
+  const result = await quizService.submitQuizAttempt(quizId, payload.answers, effectiveStudentId, studentClassId);
   sendSuccess(res, result, 201);
 }
 
@@ -61,7 +69,14 @@ export async function submitQuizAttemptHandler(req: Request, res: Response): Pro
  * GET /api/attempts
  */
 export async function getStudentAttemptsHandler(req: Request, res: Response): Promise<void> {
-  const studentIdParam = req.query["studentId"] ? Number(req.query["studentId"]) : undefined;
+  // If authenticated as a student, lock attempts history strictly to that student
+  let studentIdParam: number | undefined;
+  if (req.user?.role === "student" && req.user.studentId) {
+    studentIdParam = req.user.studentId;
+  } else if (req.query["studentId"]) {
+    studentIdParam = Number(req.query["studentId"]);
+  }
+
   const attempts = await quizService.getStudentAttempts(studentIdParam);
   sendSuccess(res, attempts);
 }

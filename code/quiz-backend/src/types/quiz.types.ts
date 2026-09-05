@@ -39,6 +39,11 @@ export interface StudentQuestionItem {
   optionC: string;
   optionD: string;
   questionOrder: number;
+  questionTextPa?: string | null;
+  optionAPa?: string | null;
+  optionBPa?: string | null;
+  optionCPa?: string | null;
+  optionDPa?: string | null;
 }
 
 // Internal question shape used for scoring only
