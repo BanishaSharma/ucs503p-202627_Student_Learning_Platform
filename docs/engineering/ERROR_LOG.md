@@ -253,5 +253,60 @@ Any module that reads `process.env` at file load time (top-level scope) in Node.
 ### Lesson
 ESM import hoisting behaves differently from CommonJS `require()`. In ESM, imports are statically resolved and executed depth-first before parent module code runs.
 
+---
+
+## ERR-006 — PathError in Express 5 Wildcard Routing (`*`)
+
+### Date
+2026-09-05
+
+### Context
+Configuring fallback routing in `src/app.ts` to serve the frontend single-page application (`index.html`) for non-API routes.
+
+### Error
+```text
+PathError [TypeError]: Missing parameter name at index 1: *; visit https://git.new/pathToRegexpError for info
+    at consumeUntil (node_modules/path-to-regexp/dist/index.js:108:27)
+    at parse (node_modules/path-to-regexp/dist/index.js:140:26)
+    at app.<computed> [as get] (node_modules/express/lib/application.js:478:22)
+  originalPath: '*'
+```
+
+### Symptoms
+Server crashed on startup when attempting to register `app.get("*", ...)`.
+
+### Root Cause
+Express v5 upgrades the path parsing engine to `path-to-regexp` v0.1.12 / v6+. In this version, raw unnamed wildcards `*` are no longer supported. Wildcard parameters must either be named (e.g. `{*splat}`) or handled via standard middleware without a path string.
+
+### Investigation
+Inspected the stack trace pointing to `path-to-regexp` and reviewed the Express 5 migration guide regarding route pattern changes.
+
+### Fix
+Replaced `app.get("*", ...)` with conditional middleware:
+```typescript
+app.use((req, res, next) => {
+  if (req.method === "GET" && !req.path.startsWith("/api")) {
+    return res.sendFile(path.join(frontendPath, "index.html"));
+  }
+  next();
+});
+```
+
+### Why This Fix Works
+Using un-routed middleware avoids invoking the `path-to-regexp` path string parser altogether, cleanly intercepting non-API GET requests and serving the static frontend application.
+
+### Alternative Solutions Considered
+- Use named wildcard `app.get('{*splat}', ...)`: Viable, but standard middleware checking `!req.path.startsWith("/api")` is more explicit and immune to router parser nuances.
+
+### Verification
+Started the server and requested `http://localhost:5000/`. Received HTTP 200 with the full HTML of the student frontend portal.
+
+### Prevention
+When working with Express v5 (`^5.x`), avoid legacy Express v4 route pattern conventions such as bare `*` or unescaped regex characters.
+
+### Lesson
+Major framework version upgrades (Express 4 -> 5) often introduce subtle breaking changes in routing syntax that require careful review of underlying library upgrades (like `path-to-regexp`).
+
+
 
 

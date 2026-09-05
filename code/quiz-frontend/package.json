@@ -1,0 +1,13 @@
+{
+  "name": "quiz-frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "ShikshaSetu Student Learning & Quiz Portal",
+  "scripts": {
+    "dev": "npx serve -l 3000 .",
+    "start": "npx serve -l 3000 ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

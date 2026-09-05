@@ -218,6 +218,56 @@ All 5 GET browsing endpoints and the POST attempt submission endpoint are fully 
 Full test suite passed with 100% expected status codes and response bodies. Database tables inspected post-test confirming atomic inserts in `quiz_attempts` and `answers`.
 
 ### Remaining Work
-- Create git commits in logical chunks as required by Section 8.
-- Push branch / prepare pull request against `development`.
+- Keep git changes local per user request (no pushing to GitHub).
+
+---
+
+## 2026-09-05 — Session 3: Frontend Portal Implementation, CORS Integration & Full-Stack Local Execution
+
+### Date
+2026-09-05
+
+### Task
+Implement an interactive frontend portal in `code/quiz-frontend/`, configure CORS and static serving in `code/quiz-backend/src/app.ts`, keep backend permanently active locally, and document how to run the full stack (Database + Backend + Frontend) locally without pushing to GitHub.
+
+### Objective
+Provide the user with an immediate, visual, fully functional student quiz experience that connects to PostgreSQL and the Express backend on `http://localhost:5000`.
+
+### Changes Made
+- Authored interactive student portal in `code/quiz-frontend/index.html` with class/subject/chapter/quiz selection, quiz-taking interface, and instant server-side score display.
+- Created `code/quiz-frontend/package.json`.
+- Installed `cors` and `@types/cors` in `code/quiz-backend`.
+- Enabled `cors()` middleware in `code/quiz-backend/src/app.ts` to allow cross-origin requests from any frontend port.
+- Added static asset serving and SPA fallback middleware in `src/app.ts` to serve `code/quiz-frontend` directly on `http://localhost:5000/`.
+- Kept the backend server continuously running in the background on port 5000.
+
+### Files Created
+- `code/quiz-frontend/index.html`
+- `code/quiz-frontend/package.json`
+
+### Files Modified
+- `code/quiz-backend/package.json` — Added `cors` and `@types/cors`.
+- `code/quiz-backend/src/app.ts` — Added `cors` middleware and frontend static serving.
+- `docs/engineering/ERROR_LOG.md` — Documented `ERR-006` (Express 5 wildcard routing `*`).
+- `docs/engineering/DEPLOYMENT.md` — Updated with full-stack local execution instructions.
+
+### Dependencies Added
+- `cors` (`^2.8.5`)
+- `@types/cors` (`^2.8.17`) [dev]
+
+### Commands Run
+- `npm install cors; npm install -D @types/cors`
+- `npm run build`
+- `node dist/server.js` (started as background daemon)
+- `(Invoke-WebRequest -Uri "http://127.0.0.1:5000/" -UseBasicParsing).StatusCode` -> Returned 200.
+- `Invoke-RestMethod -Uri "http://127.0.0.1:5000/api/health"` -> Returned 200.
+
+### Tests Performed
+- Verified root URL `http://localhost:5000/` serves the interactive frontend with HTTP 200.
+- Verified backend health endpoint `http://localhost:5000/api/health` continues to return HTTP 200 alongside static assets.
+- Verified CORS headers allow cross-origin requests.
+
+### Result
+Full stack is operational locally. The student portal is live and accessible at `http://localhost:5000/`. No code was pushed to remote GitHub.
+
 

@@ -89,3 +89,40 @@ All environment variables are loaded via `dotenv` in `src/server.ts`. A template
    ```bash
    npm run start
    ```
+
+---
+
+## 5. Running the Full Stack Locally (Database, Backend, Frontend)
+
+### Terminal 1: Database (PostgreSQL)
+Ensure the PostgreSQL Windows service is running:
+```powershell
+Get-Service postgresql*
+# If stopped, start it:
+Start-Service postgresql-x64-18
+```
+*(Database `shikshasetu_quiz` is already created and seeded).*
+
+### Terminal 2: Backend API Server
+```powershell
+cd "d:\software project\ucs503p-202627_Student_Learning_Platform\code\quiz-backend"
+npm run dev
+# Server listens on http://localhost:5000
+```
+
+### Accessing the Frontend
+There are two ways to run/access the frontend:
+
+- **Method A (Integrated — Easiest):**  
+  Open your web browser and navigate directly to:  
+  **[http://localhost:5000](http://localhost:5000)**  
+  The backend serves the interactive student learning platform from `code/quiz-frontend/` directly, with live API and database connectivity.
+
+- **Method B (Independent Dev Server):**  
+  Open a separate terminal:
+  ```powershell
+  cd "d:\software project\ucs503p-202627_Student_Learning_Platform\code\quiz-frontend"
+  npm run dev
+  # Opens on http://localhost:3000 (CORS is enabled on backend to allow cross-origin requests)
+  ```
+
