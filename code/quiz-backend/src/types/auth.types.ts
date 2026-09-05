@@ -1,4 +1,5 @@
 export type UserRole = "admin" | "teacher" | "student";
+export type UserStatus = "invited" | "pending_verification" | "active" | "deactivated";
 
 export interface AuthUser {
   id: number;
@@ -6,6 +7,7 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   isActive: boolean;
+  status?: UserStatus;
   studentId?: number;
   classId?: number;
   className?: string;

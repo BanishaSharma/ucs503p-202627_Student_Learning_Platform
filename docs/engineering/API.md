@@ -543,5 +543,96 @@ None
 - `GET /api/admin/students`: List enrolled students with classes, roll numbers, sections, and active statuses.
 - `POST /api/admin/students`: Enroll a new student into Class 8, 9, or 10.
 - `PATCH /api/admin/users/:userId/status`: Toggle user account active status (`true` / `false`). Deactivated users are blocked from logging in.
+- `PUT /api/admin/teachers/:teacherId`: Update teacher name, employee ID, or qualifications.
+- `GET /api/admin/audit-logs`: Retrieve recent system audit records (`limit` query parameter, defaults to 100).
+
+---
+
+## 13. Student Self-Registration & Email Verification Lifecycle
+
+### `POST /api/auth/register/student`
+- **Purpose:** Student registration against Punjab Government school approved domain and pre-enrolled `student_registry` records.
+- **Access:** Public (rate-limited).
+- **Body:** `{ name, email, password, classId, rollNumber, section }`
+- **Validation:**
+  - Email domain must exist in `approved_email_domains` (400 if invalid).
+  - Pre-enrollment record must exist in `student_registry` (403 if unregistered).
+  - Submitted `classId` and `rollNumber` must strictly match registry record (anti-spoofing; 403 on mismatch).
+- **Success (201):** `{ message, verificationToken, userId, status: "pending_verification" }`
+
+### `POST /api/auth/verify-email`
+- **Purpose:** Verifies student email using single-use 24-hour verification token.
+- **Access:** Public.
+- **Body:** `{ token }`
+- **Success (200):** `{ message: "Email verified successfully." }` (transitions account status to `active`, enables login).
+
+### `POST /api/auth/resend-verification`
+- **Purpose:** Invalidates previous token and issues fresh 24-hour verification token.
+- **Access:** Public (rate-limited).
+- **Body:** `{ email }`
+- **Success (200):** `{ message, verificationToken }`
+
+---
+
+## 14. Teacher Invitation & Account Activation
+
+### `POST /api/admin/teachers`
+- **Purpose:** Admin provisions a teacher account in `invited` status with `is_active = false`.
+- **Access:** Admin only.
+- **Body:** `{ name, email, employeeId, qualification, assignments? }`
+- **Success (201):** `{ userId, teacherId, status: "invited", inviteToken, inviteUrl }`
+
+### `POST /api/auth/teacher/accept-invite`
+- **Purpose:** Teacher accepts single-use 48-hour invitation token and establishes initial password.
+- **Access:** Public (rate-limited).
+- **Body:** `{ token, password }`
+- **Success (200):** `{ message: "Teacher account activated successfully. You can now log in." }` (transitions status to `active`).
+
+---
+
+## 15. Password Management & Recovery
+
+### `POST /api/auth/change-password`
+- **Purpose:** Authenticated user updates their account password.
+- **Access:** Authenticated (any role).
+- **Body:** `{ currentPassword, newPassword }`
+- **Success (200):** `{ message: "Password updated successfully." }`
+
+### `POST /api/auth/forgot-password`
+- **Purpose:** Requests a 1-hour single-use password reset token.
+- **Access:** Public (rate-limited).
+- **Body:** `{ email }`
+- **Success (200):** `{ message, resetToken }`
+
+### `POST /api/auth/reset-password`
+- **Purpose:** Consumes single-use reset token and updates account password.
+- **Access:** Public (rate-limited).
+- **Body:** `{ token, newPassword }`
+- **Success (200):** `{ message: "Password reset successfully." }`
+
+---
+
+## 16. Audit Log Specifications
+
+### `GET /api/admin/audit-logs`
+- **Purpose:** Returns chronological audit records with sensitive details stripped.
+- **Access:** Admin only.
+- **Query Parameters:** `limit` (number, default 100).
+- **Schema:**
+  ```json
+  {
+    "id": 1,
+    "userId": 1,
+    "userName": "State Administrator",
+    "userEmail": "admin@shikshasetu.gov.in",
+    "action": "ADMIN_PROVISION_TEACHER_INVITED",
+    "resourceType": "teacher",
+    "resourceId": "5",
+    "details": { "email": "jaswinder.math@punjab.gov.in", "employeeId": "PUN-T-098" },
+    "ipAddress": "127.0.0.1",
+    "createdAt": "2026-09-05T12:00:00.000Z"
+  }
+  ```
+
 
 

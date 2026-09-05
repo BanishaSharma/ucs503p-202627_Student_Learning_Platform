@@ -35,7 +35,13 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
     throw new AppError("User account no longer exists.", 401);
   }
 
-  if (!dbUser.isActive) {
+  if (!dbUser.isActive || dbUser.status !== "active") {
+    if (dbUser.status === "invited") {
+      throw new AppError("Account invitation is pending. Please complete your invitation acceptance.", 403);
+    }
+    if (dbUser.status === "pending_verification") {
+      throw new AppError("Account email is pending verification. Please verify your email before accessing.", 403);
+    }
     throw new AppError("Account has been deactivated. Please contact the administrator.", 403);
   }
 
@@ -92,7 +98,7 @@ export async function optionalAuth(req: Request, _res: Response, next: NextFunct
   try {
     const decoded = verifyToken(token);
     const dbUser = await findUserById(decoded.userId);
-    if (dbUser && dbUser.isActive) {
+    if (dbUser && dbUser.isActive && dbUser.status === "active") {
       if (dbUser.role === "student" && !decoded.studentId) {
         const studentProfile = await findStudentProfileByUserId(dbUser.id);
         if (studentProfile) {

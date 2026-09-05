@@ -46,7 +46,8 @@ export async function getQuizzesByChapterHandler(req: Request, res: Response): P
  */
 export async function getQuestionsForQuizHandler(req: Request, res: Response): Promise<void> {
   const quizId = positiveIntegerParamSchema.parse(req.params["quizId"]);
-  const questions = await quizService.getQuestionsForQuiz(quizId);
+  const studentClassId = req.user?.role === "student" ? req.user.classId : undefined;
+  const questions = await quizService.getQuestionsForQuiz(quizId, studentClassId);
   sendSuccess(res, questions);
 }
 

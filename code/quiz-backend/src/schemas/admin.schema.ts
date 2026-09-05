@@ -3,13 +3,19 @@ import { z } from "zod";
 export const createTeacherAccountSchema = z.object({
   name: z.string().trim().min(2, "Name must be at least 2 characters."),
   email: z.string().trim().email("Valid email address is required."),
-  password: z.string().min(6, "Password must be at least 6 characters."),
+  password: z.string().min(6, "Password must be at least 6 characters.").optional(),
   employeeId: z.string().trim().min(2, "Employee ID is required."),
   qualification: z.string().optional().nullable(),
   assignments: z.array(z.object({
     classId: z.number().int().positive(),
     subjectId: z.number().int().positive()
   })).optional()
+});
+
+export const updateTeacherAccountSchema = z.object({
+  name: z.string().trim().min(2, "Name must be at least 2 characters.").optional(),
+  employeeId: z.string().trim().min(2, "Employee ID is required.").optional().nullable(),
+  qualification: z.string().optional().nullable()
 });
 
 export const createStudentAccountSchema = z.object({

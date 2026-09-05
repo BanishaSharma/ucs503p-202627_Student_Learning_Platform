@@ -84,11 +84,20 @@ export async function getQuizzesByChapter(chapterId: number, studentClassId?: nu
  * Retrieve questions for students to take a quiz.
  * SECURITY: Correct answers are never returned.
  */
-export async function getQuestionsForQuiz(quizId: number): Promise<StudentQuestionItem[]> {
+export async function getQuestionsForQuiz(quizId: number, studentClassId?: number): Promise<StudentQuestionItem[]> {
   const quizRecord = await findQuizById(quizId);
   if (!quizRecord) {
     throw new AppError(`Quiz with ID ${quizId} not found`, 404);
   }
+
+  // Validate student class authorization
+  if (studentClassId !== undefined) {
+    const quizClassId = await findQuizClassId(quizId);
+    if (quizClassId && quizClassId !== studentClassId) {
+      throw new AppError("Forbidden: You are not authorized to access quizzes outside your assigned class.", 403);
+    }
+  }
+
   return await findQuestionsByQuizId(quizId);
 }
 

@@ -30,6 +30,10 @@ router.get("/quizzes/:quizId", asyncHandler(getQuizForEditingHandler));
 router.post("/quizzes", asyncHandler(createQuizHandler));
 router.put("/quizzes/:quizId", asyncHandler(updateQuizHandler));
 router.patch("/quizzes/:quizId", asyncHandler(updateQuizHandler));
+router.patch("/quizzes/:quizId/publish", asyncHandler(async (req, res) => {
+  req.body = { ...req.body, status: "published" };
+  await updateQuizHandler(req, res);
+}));
 router.delete("/quizzes/:quizId", asyncHandler(deleteQuizHandler));
 router.post("/quizzes/import-excel", upload.single("file"), asyncHandler(importExcelHandler));
 router.post("/quizzes/upload-excel", upload.single("file"), asyncHandler(importExcelHandler));

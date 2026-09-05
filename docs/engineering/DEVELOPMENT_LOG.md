@@ -487,6 +487,62 @@ Ensure zero mock data across all pages, establish real database queries for all 
 ### Result
 The full platform is complete, authenticated, secured with RBAC and class-scoping, bilingual, and verified across all roles with zero mock data. All code and documentation remain committed to local branch `feature/quiz-database-integration`.
 
+## 2026-09-05 — Session 4: Production-Grade Authentication, Authorization & Lifecycle Hardening
+
+### Date
+2026-09-05 (Local Time: 17:50 IST)
+
+### Task
+Implement production-grade authentication, account lifecycle, authorization, anti-spoofing, and security hardening for the ShikshaSetu platform across Admin, Teacher, and Student roles, with 100% test automation and complete UI support.
+
+### Objective
+1. Prohibit public teacher registration; establish admin-provisioned teacher lifecycle (`invited` -> single-use secure SHA-256 hashed token -> `active` upon password setup).
+2. Implement controlled student self-registration against `approved_email_domains` and `student_registry` pre-enrolled records with anti-spoofing class/roll verification.
+3. Add single-use email verification tokens (24h expiry) and single-use password reset tokens (1h expiry).
+4. Implement authenticated password change and administrative teacher editing.
+5. Create comprehensive audit logging (`audit_logs` table) scrubbing all passwords, tokens, hashes, and secrets.
+6. Enforce strict backend security boundaries (class scoping on quiz questions and attempts, immediate revocation of deactivated accounts).
+7. Verify all 19 security vectors and the complete end-to-end user scenario with automated test suites.
+
+### Changes Made
+- **Database Schema & Migrations:**
+  - `code/quiz-database/migrations/003_auth_lifecycle_schema.sql`: Added `status` column to `users`; created `schools`, `approved_email_domains`, `student_registry`, `email_verification_tokens`, `password_reset_tokens`, and `audit_logs` tables with constraints and indexes.
+  - `code/quiz-database/seeds/003_seed_registry_and_domains.sql`: Seeded 3 Punjab Government schools, 4 approved domains, and pre-approved registry records for Classes 8, 9, and 10.
+- **Backend Architecture & Security:**
+  - `code/quiz-backend/src/utils/token.ts`: Cryptographically secure random token generation (32-byte hex) and SHA-256 hashing.
+  - `code/quiz-backend/src/services/audit.service.ts`: Structured audit logger with recursive key scrubber omitting `password`, `hash`, `token`, `secret`, and `jwt`.
+  - `code/quiz-backend/src/middleware/auth.middleware.ts`: Validates `dbUser.status === 'active'` and `dbUser.isActive === true` on every authenticated request; immediately rejects invited (403), pending verification (403), and deactivated (403) accounts.
+  - `code/quiz-backend/src/services/auth.service.ts`:
+    - `loginUser`: Account status validation before password comparison (prevents premature access for invited/unverified/deactivated accounts).
+    - `registerStudent`: Domain whitelist validation, `student_registry` anti-spoofing comparison, initial status `pending_verification`, `isActive = false`, generation of single-use verification token.
+    - `verifyStudentEmail`: Single-use verification token validation and transition to `active`.
+    - `resendVerificationEmail`: Invalidates old token and generates fresh verification token.
+    - `acceptTeacherInvite`: Single-use invitation token validation, password setup, transition to `active`.
+    - `changePassword`: Current password validation and hash update for authenticated users.
+    - `forgotPassword` & `resetPassword`: 1-hour single-use token lifecycle.
+  - `code/quiz-backend/src/services/admin.service.ts`:
+    - `createTeacherAccount`: Begins in `status: 'invited'`, `isActive: false`, issues single-use token.
+    - `editTeacher`: Profile updates (`PUT /api/admin/teachers/:teacherId`).
+    - `setUserStatus`: Immediate account activation/deactivation with audit logging.
+    - `getAuditLogs`: Returns tamper-evident audit logs.
+  - `code/quiz-backend/src/services/quiz.service.ts` & `code/quiz-backend/src/controllers/quiz.controller.ts`:
+    - Enforced class scoping in `getQuestionsForQuiz(quizId, studentClassId)`: students cannot inspect questions outside their assigned class (HTTP 403).
+  - `code/quiz-backend/src/routes/teacher.routes.ts`: Added `PATCH /quizzes/:quizId/publish` alias.
+- **Frontend Architecture & UX:**
+  - `code/quiz-frontend/src/pages/LoginPage.jsx`: Multi-mode authentication view supporting Student Self-Registration, Email Verification, Teacher Invite Acceptance, Forgot Password, and Password Reset.
+  - `code/quiz-frontend/src/pages/AdminDashboard.jsx`: Teacher status badges (`Invited`, `Active`, `Deactivated`), Teacher Invitation modal displaying single-use token and acceptance instructions, Edit Teacher modal, and Audit Logs tab.
+- **Automated Verification:**
+  - `verify_all_scenarios.mjs`: Updated to handle teacher invite acceptance; passes 26/26 tests.
+  - `security_test_suite.mjs`: Automated suite verifying all 19 security vectors (100% pass: 25/25 assertions).
+  - `final_e2e_verification.mjs`: Comprehensive end-to-end lifecycle scenario (100% pass: 18/18 assertions).
+
+### Test Results
+- `verify_all_scenarios.mjs`: 26 PASSED, 0 FAILED
+- `security_test_suite.mjs`: 25 PASSED, 0 FAILED
+- `final_e2e_verification.mjs`: 18 PASSED, 0 FAILED
+- Total automated tests passing: 69/69
+
+
 
 
 

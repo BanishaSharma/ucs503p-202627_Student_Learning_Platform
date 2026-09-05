@@ -345,6 +345,17 @@ async function runTests() {
   const provTeacherJson = await provTeacherRes.json();
   assert(provTeacherRes.status === 201 && provTeacherJson.data?.userId, "Admin provisions new teacher account");
   const newTeacherUserId = provTeacherJson.data?.userId;
+  const inviteToken = provTeacherJson.data?.inviteToken;
+
+  // Accept teacher invitation to activate account
+  if (inviteToken) {
+    const acceptRes = await fetch(`${BASE_URL}/api/auth/teacher/accept-invite`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: inviteToken, password: "Password@123" })
+    });
+    assert(acceptRes.status === 200, "Teacher accepts invitation and sets password");
+  }
 
   // Verify new teacher can log in
   const newTeacherLogin = await fetch(`${BASE_URL}/api/auth/login`, {

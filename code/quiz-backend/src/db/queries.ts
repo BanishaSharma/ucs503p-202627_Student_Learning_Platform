@@ -9,7 +9,7 @@ import type {
   InternalScoringQuestion,
   StudentAttemptHistoryItem
 } from "../types/quiz.types.js";
-import type { AuthUser, UserRole } from "../types/auth.types.js";
+import type { AuthUser, UserRole, UserStatus } from "../types/auth.types.js";
 import type {
   TeacherAssignedClass,
   TeacherQuizSummary,
@@ -19,7 +19,9 @@ import type {
   QueryResponseItem,
   AdminTeacherItem,
   AdminStudentItem,
-  PlatformStats
+  PlatformStats,
+  AuditLogItem,
+  StudentRegistryItem
 } from "../types/platform.types.js";
 
 
@@ -265,6 +267,7 @@ export interface DbUserRow {
   passwordHash: string;
   role: UserRole;
   isActive: boolean;
+  status: UserStatus;
 }
 
 export async function findUserByEmail(email: string): Promise<DbUserRow | null> {
@@ -275,7 +278,8 @@ export async function findUserByEmail(email: string): Promise<DbUserRow | null> 
       email, 
       password_hash AS "passwordHash", 
       role, 
-      is_active AS "isActive"
+      is_active AS "isActive",
+      status
     FROM users 
     WHERE LOWER(email) = LOWER($1);
   `;
@@ -291,7 +295,8 @@ export async function findUserById(id: number): Promise<DbUserRow | null> {
       email, 
       password_hash AS "passwordHash", 
       role, 
-      is_active AS "isActive"
+      is_active AS "isActive",
+      status
     FROM users 
     WHERE id = $1;
   `;
@@ -790,6 +795,7 @@ export async function findAllTeachers(): Promise<AdminTeacherItem[]> {
       u.name,
       u.email,
       u.is_active AS "isActive",
+      u.status,
       t.employee_id AS "employeeId",
       t.qualification,
       t.created_at AS "createdAt",
@@ -809,7 +815,7 @@ export async function findAllTeachers(): Promise<AdminTeacherItem[]> {
     LEFT JOIN teacher_class_assignments tca ON tca.teacher_id = t.id
     LEFT JOIN classes c ON tca.class_id = c.id
     LEFT JOIN subjects s ON tca.subject_id = s.id
-    GROUP BY t.id, u.name, u.email, u.is_active, t.employee_id, t.qualification, t.created_at
+    GROUP BY t.id, u.name, u.email, u.is_active, u.status, t.employee_id, t.qualification, t.created_at
     ORDER BY u.name ASC;
   `;
   const result = await query<AdminTeacherItem>(sql);
@@ -824,11 +830,13 @@ export async function createUser(
     passwordHash: string;
     role: UserRole;
     isActive: boolean;
+    status?: UserStatus;
   }
 ): Promise<number> {
+  const status = data.status || (data.isActive ? "active" : "deactivated");
   const sql = `
-    INSERT INTO users (name, email, password_hash, role, is_active)
-    VALUES ($1, $2, $3, $4, $5)
+    INSERT INTO users (name, email, password_hash, role, is_active, status)
+    VALUES ($1, $2, $3, $4, $5, $6)
     RETURNING id;
   `;
   const result = await client.query<{ id: number }>(sql, [
@@ -836,7 +844,8 @@ export async function createUser(
     data.email.trim().toLowerCase(),
     data.passwordHash,
     data.role,
-    data.isActive
+    data.isActive,
+    status
   ]);
   return result.rows[0]!.id;
 }
@@ -862,9 +871,10 @@ export async function createTeacherProfile(
   return result.rows[0]!.id;
 }
 
-export async function updateUserStatus(userId: number, isActive: boolean): Promise<void> {
-  const sql = `UPDATE users SET is_active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;`;
-  await query(sql, [isActive, userId]);
+export async function updateUserStatus(userId: number, isActive: boolean, status?: UserStatus): Promise<void> {
+  const resolvedStatus = status || (isActive ? "active" : "deactivated");
+  const sql = `UPDATE users SET is_active = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3;`;
+  await query(sql, [isActive, resolvedStatus, userId]);
 }
 
 export async function findAllStudents(): Promise<AdminStudentItem[]> {
@@ -875,6 +885,7 @@ export async function findAllStudents(): Promise<AdminStudentItem[]> {
       u.name,
       u.email,
       u.is_active AS "isActive",
+      u.status,
       c.id AS "classId",
       c.name AS "className",
       st.roll_number AS "rollNumber",
@@ -948,5 +959,230 @@ export async function findPlatformStats(): Promise<PlatformStats> {
   `;
   const result = await query<PlatformStats>(sql);
   return result.rows[0]!;
+}
+
+// ============================================================
+// 6. PRODUCTION HARDENING: TOKENS, REGISTRY & AUDIT QUERIES
+// ============================================================
+
+export async function updateUserPassword(userId: number, passwordHash: string): Promise<void> {
+  const sql = `UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;`;
+  await query(sql, [passwordHash, userId]);
+}
+
+export async function updateTeacherDetails(
+  teacherId: number,
+  data: {
+    name?: string;
+    employeeId?: string | null;
+    qualification?: string | null;
+  }
+): Promise<void> {
+  if (data.name !== undefined) {
+    await query(`
+      UPDATE users SET name = $1, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = (SELECT user_id FROM teachers WHERE id = $2);
+    `, [data.name, teacherId]);
+  }
+
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  let idx = 1;
+
+  if (data.employeeId !== undefined) {
+    fields.push(`employee_id = $${idx++}`);
+    values.push(data.employeeId);
+  }
+  if (data.qualification !== undefined) {
+    fields.push(`qualification = $${idx++}`);
+    values.push(data.qualification);
+  }
+
+  if (fields.length > 0) {
+    values.push(teacherId);
+    await query(`UPDATE teachers SET ${fields.join(", ")} WHERE id = $${idx};`, values);
+  }
+}
+
+export async function isEmailDomainApproved(domain: string): Promise<boolean> {
+  const sql = `SELECT 1 FROM approved_email_domains WHERE LOWER(domain) = LOWER($1);`;
+  const result = await query(sql, [domain.trim()]);
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function findRegistryStudentRecord(email: string): Promise<StudentRegistryItem | null> {
+  const sql = `
+    SELECT 
+      sr.id,
+      sr.school_id AS "schoolId",
+      sc.name AS "schoolName",
+      sr.email,
+      sr.full_name AS "fullName",
+      sr.class_id AS "classId",
+      c.name AS "className",
+      sr.roll_number AS "rollNumber",
+      sr.section,
+      sr.is_registered AS "isRegistered"
+    FROM student_registry sr
+    JOIN schools sc ON sr.school_id = sc.id
+    JOIN classes c ON sr.class_id = c.id
+    WHERE LOWER(sr.email) = LOWER($1);
+  `;
+  const result = await query<StudentRegistryItem>(sql, [email.trim()]);
+  return result.rows[0] ?? null;
+}
+
+export async function claimRegistryStudentRecord(
+  client: PoolClient,
+  registryId: number,
+  userId: number
+): Promise<void> {
+  const sql = `
+    UPDATE student_registry 
+    SET is_registered = true, registered_user_id = $1 
+    WHERE id = $2;
+  `;
+  await client.query(sql, [userId, registryId]);
+}
+
+export async function createVerificationToken(
+  client: PoolClient | null,
+  data: {
+    userId: number;
+    tokenHash: string;
+    tokenType: "student_verify" | "teacher_invite";
+    expiresAt: Date;
+  }
+): Promise<number> {
+  const sql = `
+    INSERT INTO email_verification_tokens (user_id, token_hash, token_type, expires_at)
+    VALUES ($1, $2, $3, $4)
+    RETURNING id;
+  `;
+  const params = [data.userId, data.tokenHash, data.tokenType, data.expiresAt];
+  if (client) {
+    const res = await client.query<{ id: number }>(sql, params);
+    return res.rows[0]!.id;
+  }
+  const res = await query<{ id: number }>(sql, params);
+  return res.rows[0]!.id;
+}
+
+export async function findVerificationTokenByHash(tokenHash: string): Promise<{
+  id: number;
+  userId: number;
+  tokenHash: string;
+  tokenType: "student_verify" | "teacher_invite";
+  expiresAt: Date;
+  usedAt: Date | null;
+} | null> {
+  const sql = `
+    SELECT 
+      id, 
+      user_id AS "userId", 
+      token_hash AS "tokenHash", 
+      token_type AS "tokenType", 
+      expires_at AS "expiresAt", 
+      used_at AS "usedAt"
+    FROM email_verification_tokens 
+    WHERE token_hash = $1;
+  `;
+  const result = await query<{
+    id: number;
+    userId: number;
+    tokenHash: string;
+    tokenType: "student_verify" | "teacher_invite";
+    expiresAt: Date;
+    usedAt: Date | null;
+  }>(sql, [tokenHash]);
+  return result.rows[0] ?? null;
+}
+
+export async function markVerificationTokenUsed(tokenId: number): Promise<void> {
+  const sql = `UPDATE email_verification_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = $1;`;
+  await query(sql, [tokenId]);
+}
+
+export async function invalidateUserVerificationTokens(userId: number, tokenType: string): Promise<void> {
+  const sql = `
+    UPDATE email_verification_tokens 
+    SET used_at = CURRENT_TIMESTAMP 
+    WHERE user_id = $1 AND token_type = $2 AND used_at IS NULL;
+  `;
+  await query(sql, [userId, tokenType]);
+}
+
+export async function createPasswordResetToken(data: {
+  userId: number;
+  tokenHash: string;
+  expiresAt: Date;
+}): Promise<number> {
+  const sql = `
+    INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+    VALUES ($1, $2, $3)
+    RETURNING id;
+  `;
+  const res = await query<{ id: number }>(sql, [data.userId, data.tokenHash, data.expiresAt]);
+  return res.rows[0]!.id;
+}
+
+export async function findPasswordResetTokenByHash(tokenHash: string): Promise<{
+  id: number;
+  userId: number;
+  tokenHash: string;
+  expiresAt: Date;
+  usedAt: Date | null;
+} | null> {
+  const sql = `
+    SELECT 
+      id, 
+      user_id AS "userId", 
+      token_hash AS "tokenHash", 
+      expires_at AS "expiresAt", 
+      used_at AS "usedAt"
+    FROM password_reset_tokens 
+    WHERE token_hash = $1;
+  `;
+  const res = await query<{
+    id: number;
+    userId: number;
+    tokenHash: string;
+    expiresAt: Date;
+    usedAt: Date | null;
+  }>(sql, [tokenHash]);
+  return res.rows[0] ?? null;
+}
+
+export async function markPasswordResetTokenUsed(tokenId: number): Promise<void> {
+  const sql = `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = $1;`;
+  await query(sql, [tokenId]);
+}
+
+export async function invalidateUserPasswordResetTokens(userId: number): Promise<void> {
+  const sql = `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND used_at IS NULL;`;
+  await query(sql, [userId]);
+}
+
+export async function findAuditLogs(limit = 100): Promise<AuditLogItem[]> {
+  const sql = `
+    SELECT 
+      a.id,
+      a.user_id AS "userId",
+      u.name AS "userName",
+      u.email AS "userEmail",
+      u.role AS "userRole",
+      a.action,
+      a.resource_type AS "resourceType",
+      a.resource_id AS "resourceId",
+      a.details,
+      a.ip_address AS "ipAddress",
+      a.created_at AS "createdAt"
+    FROM audit_logs a
+    LEFT JOIN users u ON a.user_id = u.id
+    ORDER BY a.created_at DESC
+    LIMIT $1;
+  `;
+  const result = await query<AuditLogItem>(sql, [limit]);
+  return result.rows;
 }
 

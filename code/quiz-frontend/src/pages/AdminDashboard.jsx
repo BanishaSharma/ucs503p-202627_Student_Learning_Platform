@@ -5,11 +5,12 @@ import { useAuth } from '../context/AuthContext.jsx';
 export default function AdminDashboard() {
   const { apiFetch, t } = useAuth();
 
-  const [activeTab, setActiveTab] = useState('stats'); // 'stats' | 'teachers' | 'students'
+  const [activeTab, setActiveTab] = useState('stats'); // 'stats' | 'teachers' | 'students' | 'logs'
   const [stats, setStats] = useState(null);
   const [teachers, setTeachers] = useState([]);
   const [students, setStudents] = useState([]);
   const [classesList, setClassesList] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
 
@@ -18,11 +19,24 @@ export default function AdminDashboard() {
   const [newTeacher, setNewTeacher] = useState({
     name: '',
     email: '',
-    password: 'Password@123',
     employeeId: '',
     qualification: 'B.Sc., B.Ed'
   });
 
+  // Created teacher invitation modal
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [createdTeacherInvite, setCreatedTeacherInvite] = useState(null);
+
+  // Edit teacher modal
+  const [showEditTeacherModal, setShowEditTeacherModal] = useState(false);
+  const [editTeacherData, setEditTeacherData] = useState({
+    id: null,
+    name: '',
+    employeeId: '',
+    qualification: ''
+  });
+
+  // Student modal
   const [showStudentModal, setShowStudentModal] = useState(false);
   const [newStudent, setNewStudent] = useState({
     name: '',
@@ -62,6 +76,11 @@ export default function AdminDashboard() {
       const cRes = await apiFetch('/api/classes');
       const cJson = await cRes.json();
       if (cJson.success) setClassesList(cJson.data);
+
+      // 5. Audit Logs
+      const aRes = await apiFetch('/api/admin/audit-logs?limit=50');
+      const aJson = await aRes.json();
+      if (aJson.success) setAuditLogs(aJson.data);
     } catch (err) {
       console.error('Failed to load admin data:', err);
     } finally {
@@ -117,11 +136,43 @@ export default function AdminDashboard() {
       const json = await res.json();
       if (json.success) {
         setShowTeacherModal(false);
-        setNewTeacher({ name: '', email: '', password: 'Password@123', employeeId: '', qualification: 'B.Sc., B.Ed' });
-        setStatusMessage('Teacher provisioned successfully');
+        setCreatedTeacherInvite({
+          email: newTeacher.email,
+          name: newTeacher.name,
+          inviteToken: json.data.inviteToken,
+          inviteUrl: json.data.inviteUrl
+        });
+        setShowInviteModal(true);
+        setNewTeacher({ name: '', email: '', employeeId: '', qualification: 'B.Sc., B.Ed' });
+        setStatusMessage('Teacher provisioned successfully in Invited status');
         loadData();
       } else {
         alert(json.error || 'Failed to create teacher');
+      }
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleEditTeacher = async (e) => {
+    e.preventDefault();
+    if (!editTeacherData.id) return;
+    try {
+      const res = await apiFetch(`/api/admin/teachers/${editTeacherData.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: editTeacherData.name,
+          employeeId: editTeacherData.employeeId,
+          qualification: editTeacherData.qualification
+        })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setShowEditTeacherModal(false);
+        setStatusMessage('Teacher details updated successfully');
+        loadData();
+      } else {
+        alert(json.error || 'Failed to update teacher');
       }
     } catch (err) {
       alert(err.message);
@@ -156,9 +207,10 @@ export default function AdminDashboard() {
     e.preventDefault();
     if (!selectedTeacherForAssign) return;
     try {
-      const res = await apiFetch(`/api/admin/teachers/${selectedTeacherForAssign.id}/assignments`, {
+      const res = await apiFetch('/api/admin/assignments', {
         method: 'POST',
         body: JSON.stringify({
+          teacherId: selectedTeacherForAssign.id,
           classId: Number(assignClassId),
           subjectId: Number(assignSubjectId)
         })
@@ -188,12 +240,12 @@ export default function AdminDashboard() {
               {t('adminPortal')}
             </h2>
             <p className="text-xs text-slate-500 mt-1">
-              Centralised provisioning and oversight for Punjab Government Schools
+              Centralised provisioning and audit oversight for Punjab Government Schools
             </p>
           </div>
 
           {/* Tab Navigation */}
-          <div className="flex bg-white p-1 rounded-2xl border border-slate-200 shadow-xs text-xs font-bold">
+          <div className="flex flex-wrap bg-white p-1 rounded-2xl border border-slate-200 shadow-xs text-xs font-bold gap-1">
             <button
               onClick={() => setActiveTab('stats')}
               className={`px-4 py-2 rounded-xl transition ${
@@ -217,6 +269,14 @@ export default function AdminDashboard() {
               }`}
             >
               👨‍🎓 {t('manageStudents')} ({students.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('logs')}
+              className={`px-4 py-2 rounded-xl transition ${
+                activeTab === 'logs' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              🛡️ Audit Logs ({auditLogs.length})
             </button>
           </div>
         </div>
@@ -292,7 +352,7 @@ export default function AdminDashboard() {
             <div className="p-6 border-b border-slate-100 flex justify-between items-center">
               <div>
                 <h3 className="font-bold text-slate-900 text-sm">Registered Teachers</h3>
-                <p className="text-xs text-slate-400">Class assignments and active status controls</p>
+                <p className="text-xs text-slate-400">Class assignments, lifecycle status, and security controls</p>
               </div>
               <button
                 onClick={() => setShowTeacherModal(true)}
@@ -344,29 +404,49 @@ export default function AdminDashboard() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span
-                          className={`px-2 py-1 rounded-full text-[10px] font-bold ${
-                            teacher.isActive
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-red-50 text-red-700 border border-red-200'
-                          }`}
-                        >
-                          {teacher.isActive ? t('active') : t('inactive')}
-                        </span>
+                        {teacher.status === 'invited' && (
+                          <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            ✉️ Invited
+                          </span>
+                        )}
+                        {teacher.status === 'active' && (
+                          <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            ✅ Active
+                          </span>
+                        )}
+                        {(teacher.status === 'deactivated' || (!teacher.isActive && teacher.status !== 'invited')) && (
+                          <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200">
+                            ⛔ Deactivated
+                          </span>
+                        )}
                       </td>
-                      <td className="px-6 py-4 text-right space-x-2">
+                      <td className="px-6 py-4 text-right space-x-1.5">
+                        <button
+                          onClick={() => {
+                            setEditTeacherData({
+                              id: teacher.id,
+                              name: teacher.name,
+                              employeeId: teacher.employeeId || '',
+                              qualification: teacher.qualification || ''
+                            });
+                            setShowEditTeacherModal(true);
+                          }}
+                          className="px-2 py-1 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-[11px] font-semibold transition"
+                        >
+                          Edit
+                        </button>
                         <button
                           onClick={() => {
                             setSelectedTeacherForAssign(teacher);
                             setShowAssignModal(true);
                           }}
-                          className="px-2.5 py-1 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-[11px] font-semibold transition"
+                          className="px-2 py-1 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-[11px] font-semibold transition"
                         >
-                          Assign Class
+                          Assign
                         </button>
                         <button
                           onClick={() => handleToggleUserStatus(teacher.userId, teacher.isActive)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition ${
+                          className={`px-2 py-1 rounded-lg text-[11px] font-semibold transition ${
                             teacher.isActive
                               ? 'bg-red-50 text-red-600 hover:bg-red-100'
                               : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
@@ -404,9 +484,9 @@ export default function AdminDashboard() {
                 <thead className="bg-slate-50 text-slate-400 uppercase tracking-wider font-bold border-b border-slate-100">
                   <tr>
                     <th className="px-6 py-3">Student</th>
-                    <th className="px-6 py-3">{t('enrolledClass')}</th>
-                    <th className="px-6 py-3">{t('rollNumber')}</th>
-                    <th className="px-6 py-3">{t('section')}</th>
+                    <th className="px-6 py-3">Class</th>
+                    <th className="px-6 py-3">Roll No</th>
+                    <th className="px-6 py-3">Section</th>
                     <th className="px-6 py-3">{t('status')}</th>
                     <th className="px-6 py-3 text-right">{t('actions')}</th>
                   </tr>
@@ -418,16 +498,14 @@ export default function AdminDashboard() {
                         <div className="font-bold text-slate-900">{student.name}</div>
                         <div className="text-[11px] text-slate-400">{student.email}</div>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="px-2.5 py-1 bg-blue-50 text-blue-700 font-bold rounded-lg text-xs">
-                          {student.className}
-                        </span>
+                      <td className="px-6 py-4 font-semibold text-slate-700">
+                        {student.className}
                       </td>
                       <td className="px-6 py-4 font-mono text-slate-600">
                         {student.rollNumber || '—'}
                       </td>
-                      <td className="px-6 py-4 font-semibold text-slate-700">
-                        Section {student.section || 'A'}
+                      <td className="px-6 py-4 text-slate-600">
+                        {student.section || 'A'}
                       </td>
                       <td className="px-6 py-4">
                         <span
@@ -459,6 +537,65 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+
+        {/* TAB 4: AUDIT LOGS */}
+        {activeTab === 'logs' && (
+          <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
+            <div className="p-6 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 text-sm">System Audit Trail</h3>
+              <p className="text-xs text-slate-400">Complete, tamper-evident log of administrative and critical lifecycle events</p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-400 uppercase tracking-wider font-bold border-b border-slate-100">
+                  <tr>
+                    <th className="px-6 py-3">Timestamp</th>
+                    <th className="px-6 py-3">Action</th>
+                    <th className="px-6 py-3">Actor / User</th>
+                    <th className="px-6 py-3">Resource</th>
+                    <th className="px-6 py-3">IP Address</th>
+                    <th className="px-6 py-3">Metadata</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {auditLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
+                        No audit logs recorded yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    auditLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-50/60 font-mono text-[11px]">
+                        <td className="px-6 py-3 text-slate-500 whitespace-nowrap">
+                          {new Date(log.createdAt).toLocaleString()}
+                        </td>
+                        <td className="px-6 py-3">
+                          <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-bold border border-purple-100">
+                            {log.action}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3 text-slate-700">
+                          {log.userName ? `${log.userName} (${log.userEmail})` : 'System / Guest'}
+                        </td>
+                        <td className="px-6 py-3 text-slate-600">
+                          {log.resourceType || '—'} {log.resourceId ? `#${log.resourceId}` : ''}
+                        </td>
+                        <td className="px-6 py-3 text-slate-500">
+                          {log.ipAddress || '127.0.0.1'}
+                        </td>
+                        <td className="px-6 py-3 text-slate-500 max-w-xs truncate">
+                          {log.details ? JSON.stringify(log.details) : '—'}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* MODAL: PROVISION TEACHER */}
@@ -466,7 +603,9 @@ export default function AdminDashboard() {
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
             <h3 className="text-base font-bold text-slate-900 mb-1">{t('addTeacher')}</h3>
-            <p className="text-xs text-slate-400 mb-4">Create verified credentials for government school faculty</p>
+            <p className="text-xs text-slate-400 mb-4">
+              Teacher will be created in Invited state. A single-use activation token will be generated.
+            </p>
             <form onSubmit={handleCreateTeacher} className="space-y-3 text-xs">
               <div>
                 <label className="font-bold text-slate-600 block mb-1">Full Name</label>
@@ -490,21 +629,12 @@ export default function AdminDashboard() {
                   className="w-full p-2.5 border border-slate-200 rounded-xl"
                 />
               </div>
-              <div>
-                <label className="font-bold text-slate-600 block mb-1">Initial Password</label>
-                <input
-                  type="password"
-                  required
-                  value={newTeacher.password}
-                  onChange={(e) => setNewTeacher({ ...newTeacher, password: e.target.value })}
-                  className="w-full p-2.5 border border-slate-200 rounded-xl"
-                />
-              </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="font-bold text-slate-600 block mb-1">Employee ID</label>
                   <input
                     type="text"
+                    required
                     value={newTeacher.employeeId}
                     onChange={(e) => setNewTeacher({ ...newTeacher, employeeId: e.target.value })}
                     placeholder="PUN-T-2026"
@@ -533,7 +663,98 @@ export default function AdminDashboard() {
                   type="submit"
                   className="px-4 py-2 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700"
                 >
-                  Create Teacher
+                  Provision & Generate Invite
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: TEACHER INVITATION TOKEN DISPLAY */}
+      {showInviteModal && createdTeacherInvite && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 text-xs">
+            <h3 className="text-base font-bold text-slate-900 mb-1">✉️ Teacher Invitation Created</h3>
+            <p className="text-slate-500 mb-4">
+              Teacher <span className="font-bold">{createdTeacherInvite.name}</span> ({createdTeacherInvite.email}) has been provisioned in <span className="text-amber-600 font-bold">Invited</span> status.
+            </p>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 mb-4">
+              <label className="font-bold text-slate-700 block mb-1">Single-Use Invitation Token (48h expiry):</label>
+              <input
+                type="text"
+                readOnly
+                value={createdTeacherInvite.inviteToken || ''}
+                className="w-full p-2 font-mono text-[11px] bg-white border border-slate-200 rounded-lg select-all"
+              />
+            </div>
+
+            <p className="text-[11px] text-slate-400 mb-4">
+              The teacher must visit the portal, click "Teacher Invite?", and enter this token along with their desired password to activate their account.
+            </p>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowInviteModal(false)}
+                className="px-4 py-2 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT TEACHER */}
+      {showEditTeacherModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 text-xs">
+            <h3 className="text-base font-bold text-slate-900 mb-1">Edit Teacher Details</h3>
+            <p className="text-slate-400 mb-4">Update government faculty profile attributes</p>
+            <form onSubmit={handleEditTeacher} className="space-y-3">
+              <div>
+                <label className="font-bold text-slate-600 block mb-1">Full Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editTeacherData.name}
+                  onChange={(e) => setEditTeacherData({ ...editTeacherData, name: e.target.value })}
+                  className="w-full p-2.5 border border-slate-200 rounded-xl"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-600 block mb-1">Employee ID</label>
+                <input
+                  type="text"
+                  value={editTeacherData.employeeId}
+                  onChange={(e) => setEditTeacherData({ ...editTeacherData, employeeId: e.target.value })}
+                  className="w-full p-2.5 border border-slate-200 rounded-xl"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-600 block mb-1">Qualification</label>
+                <input
+                  type="text"
+                  value={editTeacherData.qualification}
+                  onChange={(e) => setEditTeacherData({ ...editTeacherData, qualification: e.target.value })}
+                  className="w-full p-2.5 border border-slate-200 rounded-xl"
+                />
+              </div>
+              <div className="flex gap-2 justify-end pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowEditTeacherModal(false)}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700"
+                >
+                  Save Changes
                 </button>
               </div>
             </form>

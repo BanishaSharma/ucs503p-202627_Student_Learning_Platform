@@ -1,4 +1,4 @@
-import type { UserRole } from "./auth.types.js";
+import type { UserRole, UserStatus } from "./auth.types.js";
 
 export interface TeacherAssignedClass {
   classId: number;
@@ -94,6 +94,7 @@ export interface AdminTeacherItem {
   name: string;
   email: string;
   isActive: boolean;
+  status: UserStatus;
   employeeId: string | null;
   qualification: string | null;
   assignedClasses: {
@@ -111,6 +112,7 @@ export interface AdminStudentItem {
   name: string;
   email: string;
   isActive: boolean;
+  status: UserStatus;
   classId: number;
   className: string;
   rollNumber: string | null;
@@ -124,4 +126,38 @@ export interface PlatformStats {
   totalQuizzes: number;
   totalAttempts: number;
   activeUsers: number;
+}
+
+export interface AuditLogItem {
+  id: number;
+  userId: number | null;
+  userName?: string | null;
+  userEmail?: string | null;
+  userRole?: UserRole | null;
+  action: string;
+  resourceType: string;
+  resourceId: string | null;
+  details: Record<string, unknown> | null;
+  ipAddress: string | null;
+  createdAt: string;
+}
+
+export interface StudentRegistryItem {
+  id: number;
+  schoolId: number;
+  schoolName: string;
+  email: string;
+  fullName: string;
+  classId: number;
+  className: string;
+  rollNumber: string;
+  section: string;
+  isRegistered: boolean;
+}
+
+export interface SchoolItem {
+  id: number;
+  name: string;
+  code: string;
+  district: string;
 }
