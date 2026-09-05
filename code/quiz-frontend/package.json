@@ -1,13 +1,16 @@
 {
   "name": "quiz-frontend",
-  "version": "1.0.0",
+  "private": true,
+  "version": "0.0.0",
   "type": "module",
-  "description": "ShikshaSetu Student Learning & Quiz Portal",
-  "scripts": {
-    "dev": "npx serve -l 3000 .",
-    "start": "npx serve -l 3000 ."
+  "dependencies": {
+    "react-router-dom": "^7.18.3"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^6.1.1",
+    "autoprefixer": "^10.5.4",
+    "postcss": "^8.5.26",
+    "tailwindcss": "^4.3.3"
+  }
 }
